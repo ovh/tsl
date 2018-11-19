@@ -1,0 +1,14 @@
+tsl:
+  default:
+    endpoint: http//example.com
+    type: 'warp10'
+
+  warp10:
+    endpoints:
+      - http://127.0.0.1:8080
+      - http://127.0.0.1:8081
+
+  promQL:
+    endpoints:
+      - http://127.0.0.1:9090
+      - http://127.0.0.1:9091
