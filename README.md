@@ -77,6 +77,33 @@ $ ./build/tsl --config path/to/config.yml
 INFO[0000] Start tsl server on 127.0.0.1:8080
 ```
 
+## Query TSL
+
+To send a TSL request, you can use the `v0/query` api endpoint to send TSL queries.
+
+A TSL query can be:
+
+```tsl
+select("sys.cpu.nice").where("host=web01").from(1346846400000,to=1346847000005)
+```
+
+This is a first TSL query, with the following methods used:
+
+- **select** to specify a metric name to retrieve (or pattern name).
+- **where** to set labels that the current Time-series must have.
+- **from** to select data between two dates.
+
+You can send this request through an HTTP Post with the cURL Command line or any other HTTP tools like [Insomnia](https://insomnia.rest/) or [PostMan](https://www.getpostman.com/).
+
+As example, we can write a new TSL file containing the previous script and send the cURL command below:
+
+```
+curl -v --data-binary @select.tsl 'https://user:password@127.0.0.1:8080/v0/query'
+```
+This command provides as result a time-series JSON list.
+
+TSL implements a lot of diffetent methods and you can find a more details in the [spec folder](./spec/doc.md).
+
 ## Usage
 
 If you need more complex options, use `./build/tsl --help`:
