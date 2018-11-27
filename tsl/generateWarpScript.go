@@ -395,6 +395,13 @@ func (protoParser *ProtoParser) getFetch(selectStatement SelectStatement, token 
 		metric = "~.*"
 	}
 
+	// Return find when no last or from methods were sets
+	if !selectStatement.hasFrom && !selectStatement.hasLast {
+		find := fmt.Sprintf("[ %q %q "+protoParser.getFetchLabels(selectStatement.where)+" ] FIND", token, metric)
+		attPolicy := protoParser.getAttributePolicyString(selectStatement.attributePolicy, prefix)
+		return find + attPolicy, nil
+	}
+
 	// When has from set return duration between from and lastitck
 	if selectStatement.hasFrom {
 		fetch := fmt.Sprintf("[ %q %q "+protoParser.getFetchLabels(selectStatement.where)+" "+from+" "+lastTick+" ] FETCH", token, metric)
