@@ -3,11 +3,13 @@
 select('foo')                        // 
 select('foo').where('key=value')
 select('foo').where('key~val.*')
-select('foo').where('host=srv1','dc~(gra|rbx)')
+select('foo').where(['host=srv1', 'dc~(gra|rbx)'])
+select('foo').where(['host=srv1', 'dc~(gra|rbx)','key~val.*','key=value'])
 
 // Explicit Auth context 
-connect('API', 'TOKEN').select('foo')
-
+connect(warp10, 'API', 'TOKEN')
+connect(warp10, 'API', 'TOKEN').select('foo')
+connect(prometheus, 'API', 'USER', 'PWD').select('foo')
 
 // Get by Date
 select('foo').from(@ISO8601, to=@ISO8601)    // Date are ISO8601, from is oldest and to is newest. to() is optional
@@ -35,19 +37,24 @@ select('foo').where('dc=~(gra|rbx)','rack=001')
 
 // Downsample / bucketize
 select('foo').sampleBy(@bucket_span, @aggregator, @args...)
+select('foo').sampleBy(@bucket_count, @aggregator, @args...)
 select('foo').sampleBy(5m, max)
 select('foo').sampleBy(5m, mean)                     // 5m span from 12:03 : 12:05, 12:00, 11:55   / Absolute is default
 select('foo').sampleBy(5m, mean, relative=true)      // 5m span from 12:03 : 12:03, 11:58, 11:53  
 
-select('foo').sample(mean)
-
-// Auto Fill
+// Fill
 select('foo').sampleBy(1h, mean)        // Default fill policy : interpolate + fillprefious + fillnext
-select('foo').sampleBy(1h, mean, fill=next)
-select('foo').sampleBy(1h, mean, fill=previous)
-select('foo').sampleBy(1h, mean, fill=auto)
-select('foo').sampleBy(1h, mean, fill=interpolate)
-select('foo').sampleBy(1h, mean, fill=none)
+select('foo').sampleBy(1h, mean, fill='next')
+select('foo').sampleBy(1h, mean, fill='previous')
+select('foo').sampleBy(1h, mean, fill='auto')
+select('foo').sampleBy(1h, mean, fill='interpolate')
+select('foo').sampleBy(1h, mean, fill='none')
+
+// Sampling with expected data-points count
+select('foo').sampleBy(50, mean)  // Will return ~50 points spaced equally
+
+// Complex sampling
+select("foo").sampleBy(span=1m, aggregator="mean", fill=["interpolate", 'next', "previous"], relative=false)
 
 // Aggregate / reduce
 select('foo').groupBy(@tag_key, @aggregator)   // groupBy() applies a sampleBy('1m', last) if no sampling has already been done
@@ -72,9 +79,11 @@ select('foo').greaterThan(100)   // filter values above 100
 select('foo').greaterOrEqual(0)
 select('foo').lessThan(10)
 select('foo').lessOrEqual(0)
-select('foo').max(10)
-select('foo').min(0)
-select('foo').mean(pre=1, post=1)
+select('foo').maxWith(10)
+select('foo').minWith(0)
+select('foo').window(mean, pre=1, post=1)
+select('foo').window(min, pre=1, post=1)
+select('foo').window(max, pre=1m)
 
 // example : 
 select('foo').greaterThan(100).lessThan(10).equal(0)
