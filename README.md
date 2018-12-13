@@ -1,6 +1,6 @@
 # Time Series Language (TSL)
 
-> TSL is a HTTP proxy which generate [_WarpScript_](https://www.warp10.io) or a [_PromQl script_](https://prometheus.io/docs/prometheus/latest/querying/basics/) based on a TSL query, then execute it on a _Warp 10_ or a _Prometheus_ backend. To get more information about a TSL query, you can have a look at our [initial spec](./spec/spec.md) and our [query doc](./spec/doc.md).
+> TSL is a HTTP proxy which generate [_WarpScript_](https://www.warp10.io) or a [_PromQl script_](https://prometheus.io/docs/prometheus/latest/querying/basics/) based on a TSL query, then execute it on a _Warp 10_ or a _Prometheus_ backend. To get more information about a TSL query, you can have a look at our [initial spec](./spec/spec.md) and our [query doc](./spec/doc.md). Our ANTLR grammar definition is available in the antlr folder [here](./antlr/README.md).
 
 ## Pre-install
 

@@ -1,0 +1,200 @@
+// read foo metric for the last 1h
+select('foo')                        // 
+select('foo').where('key=value')
+select('foo').where('key~val.*')
+select('foo').where(['host=srv1', 'dc~(gra|rbx)'])
+select('foo').where(['host=srv1', 'dc~(gra|rbx)','key~val.*','key=value'])
+
+// Explicit Auth context 
+connect(warp10, 'API', 'TOKEN')
+connect(warp10, 'API', 'TOKEN').select('foo')
+connect(prometheus, 'API', 'USER', 'PWD').select('foo')
+
+select("ts").where("l=0")
+// Get by Date
+select('foo').from('2007-04-22T01:00:00-05:00', to='2017-04-22T01:00:00-05:00')  // Date are ISO8601
+select('foo').from('2007-04-22T01:00:00-05:00')  // Date are ISO8601
+
+// Get by time range
+select('foo').last(1h, shift=1h)                     // now is a special keyword for the current time at execution
+select('foo').last(1h, timestamp=1528240512000000)   //  Get last element from now, or timestamp if provided - Timestamp is in PTU (platform time unit)
+select('foo').last(10, date='test')                     // Get last element from now, or date if provided
+select('foo').last(1h)                               // without timestamp, now is assumed
+
+select('foo').last(10)                // Get 10 last element from now
+
+// Filter by labels
+select('foo').where('dc=gra').last(10).where('dc=gra')
+select('foo').where(['host=srv1', 'dc~(gra|rbx)','key~val.*','key=value']).from('2007-04-22T01:00:00-05:00')
+
+select('foo').sampleBy(5m, max)
+select('foo').sampleBy(5m, mean)                     // 5m span from 12:03 : 12:05, 12:00, 11:55   / Absolute is default
+select('foo').sampleBy(5m, mean, relative=true)
+
+select('foo').sampleBy(1h, mean)        // Defaut fill policy : interpolate + fillprefious + fillnext
+select('foo').sampleBy(1h, mean, fill='next')
+select('foo').sampleBy(1h, mean, fill='previous')
+select('foo').sampleBy(1h, mean, fill='auto')
+select('foo').sampleBy(1h, mean, fill="interpolate")
+select('foo').sampleBy(1h, mean, fill='none')
+select('foo').sampleBy(1h, mean, fill=['next', 'previous', 'interpolate'])
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(span=1m, aggregator="mean", fill=["interpolate", 'next', "previous"], relative=false)
+
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(span=1m, aggregator=mean, fill="interpolate", relative=false)
+
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(1m, mean, "interpolate", false)
+
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(1m, mean, "none")
+
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(30, max)
+
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(1m, mean)
+
+select('foo').groupBy('host', sum)
+select('foo').groupBy(['host'], sum)
+select('foo').groupBy(['host','dc'], sum)
+
+select('foo').group(sum)                         // Idem without By 
+
+// With only a duration (Prometheus or Warp10)
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(1m, "last")
+  .window(mean, 1m)
+
+// With pre and post as durations (Warp10)
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(1m, "last")
+  .window(sum, 2m, 1m)
+
+
+// With pre and post as integer (Warp10)
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .window(sum, 2, 10)
+
+
+
+// Transform values
+
+
+select('foo').mul(8)
+select('foo').div(1000)
+select('foo').add(1)
+select('foo').rate()
+select('foo').rename('bar')          //  rename the series 
+select('foo').renameBy('host')    // rename the series with the tag value
+//select('foo').cumulativeSum()       // 
+select('foo').last(1d, shift=1d).shift(1d)  // Shifting a series
+
+// Filter values
+
+select('foo').equal(0)
+select('foo').notEqual(0)
+select('foo').greaterThan(100)   // filter values above 100
+select('foo').greaterOrEqual(0)
+select('foo').lessThan(10)
+select('foo').lessOrEqual(0)
+select('foo').maxWith(10)
+select('foo').minWith(0)
+select('foo').window(mean, pre=1, post=1)
+select('foo').window(min, pre=1, post=1)
+select('foo').window(max, pre=1m)
+
+// example : 
+select('foo').greaterThan(100).lessThan(10).equal(0)
+
+// Simple interface with rate and bytes to bits convertion
+select('os.net.bytes').where('host=h1').last(1d).sampleBy(2m, last).rate().mul(8)
+
+// Valid parameters prefix
+add(
+  select("sys.cpu.nice")
+    .from(1346846400000000,1346847000006000)
+    .where("host=web01")
+    .sampleBy(1m, "mean"),
+  select("sys.cpu.nice")
+    .from(1346846400000000,1346847000006000)
+    .where("host=web02")
+    .sampleBy(1m, "mean")
+)
+
+// Add on label "host"
+add(
+  select("sys.cpu.nice")
+    .from(1346846400000000,1346847000006000)
+    .sampleBy(1m, "mean"),
+  select("sys.cpu.nice")
+    .from(1346846400000000,1346847000006000)
+    .sampleBy(1m, "mean")
+).on("host")
+
+// Compute an add on all series
+add(
+  select("sys.cpu.nice")
+    .from(1346846400000000,1346847000006000)
+    .where("host=web01")
+    .sampleBy(1m, "mean"),
+  select("sys.cpu.nice")
+    .from(1346846400000000,1346847000006000)
+    .where("host=web02")
+    .sampleBy(1m, "mean")
+).ignoring("host")
+
+// Store a two minutes duration
+customDuration = 2m
+
+// Store a series name
+seriesName = "sys.cpu.nice"
+
+// Store a label name
+labelName = "host=web02"
+
+// Store a number
+myNumber = 100
+
+// Store a select instruction and it's operation
+mySelect = select(seriesName)
+              .from(1346846400000000,1346847000006000)
+			        .where(labelName)
+			        .sampleBy(30s, mean)
+			        .add(100)
+
+// Get it's result
+mySelect
+
+
+select('os.net.bytes').renameLabelValue("dc", "lg.*", "new-dc").renameLabelValue("dc", "new").renameLabelKey("dc", "Data-center").removeLabels("host", "dc")
+
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(1m, "last")
+  .cumulative(sum, 1m)
+
+
+select('foo').groupWithout('host', sum)
+select('foo').groupWithout(['host'], sum)
+select('foo').groupWithout(['host','dc'], sum)
+
+select('foo').add(1).timesplit(6h, 100, "record")
+
+select('foo').add(1).timeclip(15454545, 10)
+select('foo').add(1).timemodulo(100, "mod")
+
+
+mySelect.renameLabelValue("dc", "lg.*", "new-dc")
+
+add(mySelect.add(1), select('foo').add(1).timemodulo(100, "mod"))
