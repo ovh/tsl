@@ -185,7 +185,7 @@ func promQuery(instructions []Instruction, prom string, ctx echo.Context, now ti
 		protoParser := ProtoParser{name: "prometheus", lineStart: lineStart}
 		promQl, err := protoParser.GeneratePromQl(instruction, now)
 		if err != nil {
-			log.Warn(err)
+			log.WithError(err).Error("Could not generate PromQL")
 			return "", ctx.JSON(http.StatusMethodNotAllowed, NewError(err))
 		}
 
@@ -223,7 +223,7 @@ func warpQuery(instructions []Instruction, warp string, ctx echo.Context, lineSt
 	req.Body = warpscript
 	res, err := exec(req, warp, ctx)
 	if err != nil {
-		log.Warn(err)
+		log.WithError(err).Error("Could not execute WarpScript")
 		return "", ctx.JSON(http.StatusInternalServerError, NewError(err))
 	}
 	return res, nil
@@ -247,6 +247,10 @@ func exec(req *Request, warp string, ctx echo.Context) (string, error) {
 	res, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
 		return "", err
+	}
+
+	if http.StatusOK != res.StatusCode {
+		return "", errors.New(res.Header.Get("X-Warp10-Error-Message"))
 	}
 
 	buf := new(bytes.Buffer)
@@ -276,14 +280,12 @@ func execProm(req *Ql, ctx echo.Context, prom string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	res, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
 		return "", err
 	}
 
-	if err != nil {
-		return "", err
-	}
 	defer res.Body.Close()
 
 	buf := new(bytes.Buffer)
