@@ -360,6 +360,12 @@ The following TSL methods can be used to apply arithmetic operators on metrics:
 
 > The **logN** operator is not available on **Prometheus**.
 
+#### Remove NaN values in Warp 10
+
+With Warp 10 you can use the [finite mapper](https://www.warp10.io/doc/mapper.finite) to remove the NaN values, you can do the same in TSL:
+
+* The **finite** operator. Remove NaN values, example: _.finite()_
+
 #### Equality operators
 
 The following TSL methods can be used to apply equality operators on metrics:
@@ -390,13 +396,6 @@ The following TSL methods can be used to apply time related operators on metrics
 * The **month** operator used to replace each points per their **month** (in UTC time), example: _.month()._
 * The **year** operator used to replace each points per their **year** (in UTC time), example: _.year()._
 * The **timestamp** operator used to replace each points per their **timestamp** (in UTC time), example: _.timestamp()._
-
-#### Time window methods
-
-TSL includ a method to apply an operation on a selected time window. This represents [**time window mapper**](http://www.warp10.io/reference/frameworks/framework-map/) in Warp 10 and [**over_time**](https://prometheus.io/docs/prometheus/latest/querying/functions/#%3Caggregation%3E_over_time()) operators in PromQL.
-This methods apply a function to all values of a time window of each metrics and replace the current value by the result of this function. 
-
-The method applied can be one of
 
 ### Metrics sort 
 
