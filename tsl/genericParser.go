@@ -692,7 +692,7 @@ loop:
 				return nil, err
 			}
 
-		case DELTA, MEAN, MEDIAN, MIN, MAX, COUNT, STDDEV, STDVAR, SUM, JOIN, PERCENTILE:
+		case DELTA, MEAN, MEDIAN, MIN, MAX, COUNT, STDDEV, STDVAR, SUM, JOIN, PERCENTILE, FINITE:
 			instruction, err = p.parseWindowOperator(tok, pos, lit, instruction, hasSampling)
 
 			if err != nil {
@@ -2166,7 +2166,11 @@ func (p *Parser) parseWindowOperator(tok Token, pos Pos, lit string, instruction
 	}
 
 	if len(fields) == addedParams {
-		op.attributes[MapperPre] = InternalField{tokenType: INTEGER, prefixName: MapperPre, hasPrefixName: true, lit: "1"}
+		litPre := "1"
+		if tok == FINITE {
+			litPre = "0"
+		}
+		op.attributes[MapperPre] = InternalField{tokenType: INTEGER, prefixName: MapperPre, hasPrefixName: true, lit: litPre}
 	}
 
 	// In case of duration window

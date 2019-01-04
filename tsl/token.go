@@ -71,6 +71,7 @@ const (
 	FILTERBYLABELS
 	FILTERBYNAME
 	FILTERBYLASTVALUE
+	FINITE
 	FIRST
 	FLOOR
 	FROM
@@ -198,6 +199,7 @@ var tokens = [...]string{
 	FILTERBYLABELS:    "filterByLabels",
 	FILTERBYNAME:      "filterByName",
 	FILTERBYLASTVALUE: "filterByLastValue",
+	FINITE:            "finite",
 	FIRST:             "first",
 	FLOOR:             "floor",
 	FROM:              "from",
