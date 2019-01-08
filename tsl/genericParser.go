@@ -566,7 +566,6 @@ loop:
 				p.Unscan()
 				break loop
 			} else {
-				log.Warn(nexTok.String())
 				errMessage := fmt.Sprintf("Function %q, expects to stand on a single select statement", tok.String())
 				return nil, p.NewTslError(errMessage, pos)
 			}
@@ -1464,8 +1463,10 @@ func (p *Parser) parseSampleBy(tok Token, pos Pos, lit string, instruction *Inst
 		{tokenType: TRUE, prefixName: SampleRelative, hasPrefixName: true},
 		{tokenType: FALSE, prefixName: SampleRelative, hasPrefixName: true},
 		{tokenType: STRING, prefixName: SampleFill, hasPrefixName: true},
+		{tokenType: FILL, prefixName: SampleFill, hasPrefixName: true},
 		{tokenType: INTERNALLIST, prefixName: SampleFill, hasPrefixName: true},
 		{tokenType: INTEGER, prefixName: SampleAuto, hasPrefixName: true},
+		{tokenType: FILL},
 		{tokenType: STRING},
 		{tokenType: INTERNALLIST},
 		{tokenType: TRUE},
@@ -1507,6 +1508,9 @@ func (p *Parser) parseSampleBy(tok Token, pos Pos, lit string, instruction *Inst
 		}
 
 		if field.hasPrefixName {
+			if field.tokenType == FILL {
+				field.prefixName = SampleFillValue
+			}
 			sampler.attributes[field.prefixName] = field
 			continue
 		}
@@ -1549,6 +1553,10 @@ func (p *Parser) parseSampleBy(tok Token, pos Pos, lit string, instruction *Inst
 		// Validate sampler optionnals parameter
 		if field.tokenType == DURATIONVAL {
 			field.prefixName = SampleSpan
+			field.hasPrefixName = true
+
+		} else if field.tokenType == FILL {
+			field.prefixName = SampleFillValue
 			field.hasPrefixName = true
 		} else if field.tokenType == STRING {
 			field.prefixName = SampleFill
@@ -2576,6 +2584,32 @@ func (p *Parser) ParseFields(function string, internalFields map[int][]InternalF
 				field = *internalList
 				if err != nil {
 					return nil, err
+				}
+				res[index] = field
+				break
+			} else if tok == FILL && field.tokenType == FILL {
+				findType = true
+				tok, pos, lit = p.ScanIgnoreWhitespace()
+				if tok != LPAREN {
+					errMessage := fmt.Sprintf("With 'fill()' method expected an opening '(', got %q", tokstr(tok, lit))
+					return nil, p.NewTslError(errMessage, pos)
+				}
+				tok, pos, lit = p.ScanIgnoreWhitespace()
+				if tok == STRING {
+					field.lit = "'" + lit + "'"
+				} else if tok == NUMBER || tok == INTEGER {
+					field.lit = lit
+				} else if tok == TRUE || tok == FALSE {
+					field.lit = tok.String()
+				} else {
+					errMessage := fmt.Sprintf("Unexpected type of field for the 'fill()' method. Expect a native type, got %q", tokstr(tok, lit))
+					return nil, p.NewTslError(errMessage, pos)
+				}
+
+				tok, pos, lit = p.ScanIgnoreWhitespace()
+				if tok != RPAREN {
+					errMessage := fmt.Sprintf("With 'fill()' method expected a closing ')', got %q", tokstr(tok, lit))
+					return nil, p.NewTslError(errMessage, pos)
 				}
 				res[index] = field
 				break
