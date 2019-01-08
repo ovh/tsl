@@ -85,6 +85,8 @@ const (
 	HOUR
 	IGNORING
 	JOIN
+	KEEPFIRSTVALUES
+	KEEPLASTVALUES
 	LABELS
 	LAST
 	LESSOREQUAL
@@ -213,6 +215,8 @@ var tokens = [...]string{
 	HOUR:              "hour",
 	IGNORING:          "ignoring",
 	JOIN:              "join",
+	KEEPFIRSTVALUES:   "keepFirstValues",
+	KEEPLASTVALUES:    "keepLastValues",
 	LAST:              "last",
 	LABELS:            "labels",
 	LESSOREQUAL:       "lessOrEqual",

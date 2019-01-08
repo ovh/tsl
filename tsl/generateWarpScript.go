@@ -216,6 +216,14 @@ func (protoParser *ProtoParser) getFrameworksOp(selectStatement SelectStatement,
 			buffer.WriteString(protoParser.operators(framework))
 			buffer.WriteString("\n")
 
+		case KEEPLASTVALUES, KEEPFIRSTVALUES:
+			keepValues, err := protoParser.parseKeepValues(framework)
+			if err != nil {
+				return "", err
+			}
+			buffer.WriteString(keepValues)
+			buffer.WriteString("\n")
+
 		case RENAME, STORE:
 			buffer.WriteString(protoParser.nValuesOperators(framework))
 			buffer.WriteString("\n")
@@ -1099,6 +1107,31 @@ func (protoParser *ProtoParser) renameLabelValue(framework FrameworkStatement) (
 
 	value := "<% DROP DUP LABELS '" + labelKey.lit + "' GET '" + regExp.lit + "' MATCHER MATCH <% SIZE 0 > %> <% { '" + labelKey.lit + "' '" + newValue.lit + "' } RELABEL %> IFT %> LMAP "
 	return value, nil
+}
+
+func (protoParser *ProtoParser) parseKeepValues(framework FrameworkStatement) (string, error) {
+	var buffer bytes.Buffer
+
+	buffer.WriteString("<% DROP ")
+	value := "1"
+	mapValue, ok := framework.attributes[MapperValue]
+
+	if ok {
+		value = mapValue.lit
+	}
+
+	buffer.WriteString(value)
+
+	// Keep the minimal value between USER specified parameter and the current SERIES size to avoid a Warp 10 error
+	buffer.WriteString(" SWAP DUP SIZE ROT MIN")
+
+	if framework.operator == KEEPLASTVALUES {
+		buffer.WriteString(" -1 * ")
+	}
+
+	buffer.WriteString(" SHRINK %> LMAP")
+
+	return buffer.String(), nil
 }
 
 //
