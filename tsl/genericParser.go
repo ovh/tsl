@@ -664,7 +664,7 @@ loop:
 
 			hasSampling = true
 
-		case ADDSERIES, SUBSERIES, MULSERIES, DIVSERIES, EQUAL, MAXWITH, MINWITH, NOTEQUAL, GREATERTHAN, GREATEROREQUAL, LESSTHAN, LESSOREQUAL, LOGN, SHRINK, TIMESCALE:
+		case ADDSERIES, SUBSERIES, MULSERIES, DIVSERIES, EQUAL, MAXWITH, MINWITH, NOTEQUAL, GREATERTHAN, GREATEROREQUAL, LESSTHAN, LESSOREQUAL, LOGN, SHRINK, KEEPFIRSTVALUES, KEEPLASTVALUES, TIMESCALE:
 			instruction, err = p.parseSingleNumericOperator(tok, pos, lit, instruction)
 
 			if err != nil {
@@ -1986,6 +1986,12 @@ func (p *Parser) parseSingleNumericOperator(tok Token, pos Pos, lit string, inst
 	op.operator = tok
 	op.attributes = make(map[PrefixAttributes]InternalField)
 
+	expectedField := 1
+
+	if tok == KEEPFIRSTVALUES || tok == KEEPLASTVALUES {
+		expectedField = 0
+	}
+
 	// Load single numeric operator
 	zeroFields := []InternalField{
 		{tokenType: INTEGER},
@@ -2006,7 +2012,7 @@ func (p *Parser) parseSingleNumericOperator(tok Token, pos Pos, lit string, inst
 	}
 
 	// Check field size number
-	if len(fields) < 1 {
+	if len(fields) < expectedField {
 		errMessage := fmt.Sprintf("The %q function expects at least one %q parameter", tok.String(), NUMBER.String())
 		return nil, p.NewTslError(errMessage, pos)
 	}

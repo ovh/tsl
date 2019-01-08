@@ -396,7 +396,11 @@ The following TSL methods can be used to apply time related operators on metrics
 * The **month** operator used to replace each points per their **month** (in UTC time), example: _.month()._
 * The **year** operator used to replace each points per their **year** (in UTC time), example: _.year()._
 * The **timestamp** operator used to replace each points per their **timestamp** (in UTC time), example: _.timestamp()._
+* The **keepLastValues** operator used to keep the last N values of the operator (from 0 to the current metrics size, by default return only the last metric value), example: _.keepLastValues()._, _.keepLastValues(10)._
+* The **keepFirstValues** operator used to keep the first N values of the operator (from 0 to the current metrics size, by default return only the first metric value), example: _.keepFirstValues()._, _.keepFirstValues(10)._
 
+For **keepLastValues** and **keepFirstValues** function, if the parameter specified is greater than the actual size of the metric, those functions will then return the complete metrics.
+ 
 ### Metrics sort 
 
 TSL introduces some methods to sort metrics by their samples values.
