@@ -2591,7 +2591,7 @@ func (p *Parser) ParseFields(function string, internalFields map[int][]InternalF
 				findType = true
 				tok, pos, lit = p.ScanIgnoreWhitespace()
 				if tok != LPAREN {
-					errMessage := fmt.Sprintf("With 'fill()' method expected an opening '(', got %q", tokstr(tok, lit))
+					errMessage := fmt.Sprintf("'fill()' method expected an opening '(', got %q", tokstr(tok, lit))
 					return nil, p.NewTslError(errMessage, pos)
 				}
 				tok, pos, lit = p.ScanIgnoreWhitespace()
@@ -2608,7 +2608,7 @@ func (p *Parser) ParseFields(function string, internalFields map[int][]InternalF
 
 				tok, pos, lit = p.ScanIgnoreWhitespace()
 				if tok != RPAREN {
-					errMessage := fmt.Sprintf("With 'fill()' method expected a closing ')', got %q", tokstr(tok, lit))
+					errMessage := fmt.Sprintf("'fill()' method expected a closing ')', got %q", tokstr(tok, lit))
 					return nil, p.NewTslError(errMessage, pos)
 				}
 				res[index] = field

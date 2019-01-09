@@ -20,7 +20,7 @@ func NewError(err error) *Error {
 
 // NewTslError create an instance of error using the error type
 func (p *Parser) NewTslError(message string, pos Pos) *Error {
-	errorMessage := fmt.Sprintf(message+" at line %d, char %d", pos.Line+1-p.lineStart, pos.Char+1)
+	errorMessage := fmt.Sprintf("Cannot parsed query: %s at line %d, char %d", message, pos.Line+1-p.lineStart, pos.Char+1)
 	return &Error{
 		Message: errorMessage,
 	}
@@ -33,7 +33,7 @@ func (e *Error) Error() string {
 
 // NewProtoError create an error related to the proto
 func (p *ProtoParser) NewProtoError(message string, pos Pos) *Error {
-	errorMessage := fmt.Sprintf("When using "+p.name+" query back-end: "+message+" at line %d, char %d", pos.Line+1-p.lineStart, pos.Char+1)
+	errorMessage := fmt.Sprintf("Cannot execute query on %s back-end: %s at line %d, char %d", p.name, message, pos.Line+1-p.lineStart, pos.Char+1)
 	return &Error{
 		Message: errorMessage,
 	}
