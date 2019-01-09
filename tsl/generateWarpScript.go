@@ -56,11 +56,36 @@ var toWarpScript = [...]string{
 }
 
 // GenerateWarpScript Generate Global WarpScript to execute from an instruction list
-func (protoParser *ProtoParser) GenerateWarpScript(instructions []Instruction) (string, error) {
+func (protoParser *ProtoParser) GenerateWarpScript(instructions []Instruction, allowAuthenticate bool) (string, error) {
 	var buffer bytes.Buffer
 
 	buffer.WriteString("NOW 'now' STORE")
 	buffer.WriteString("\n")
+
+	// In case stack authentication is allowed in configuration
+	if allowAuthenticate {
+
+		// Search for a token in all queries
+		for _, instruction := range instructions {
+
+			// Apply authenticate on first token found
+			if instruction.hasSelect && instruction.connectStatement.token != "" {
+
+				// Authenticate the stack
+				buffer.WriteString("'" + instruction.connectStatement.token + "' AUTHENTICATE")
+				buffer.WriteString("\n")
+
+				// Raise maxops and fetched DP limits
+				buffer.WriteString("'stack.maxops.hard' STACKATTRIBUTE DUP <% ISNULL ! %> <% MAXOPS %> <% DROP %> IFTE")
+				buffer.WriteString("\n")
+				buffer.WriteString("'fetch.limit.hard' STACKATTRIBUTE DUP <% ISNULL ! %> <% LIMIT %> <% DROP %> IFTE")
+				buffer.WriteString("\n")
+
+				// Stop the loop
+				break
+			}
+		}
+	}
 
 	for _, instruction := range instructions {
 

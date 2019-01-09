@@ -127,11 +127,13 @@ func (tsl Tsl) Query(ctx echo.Context) error {
 	// Execute all Warp requests
 	warpEndpoints := viper.GetStringSlice("tsl.warp10.endpoints")
 
+	allowAuthenticate := viper.GetBool("tsl.warp10.authenticate")
+
 	for _, warp := range warpEndpoints {
 
 		if instructions, ok := instructionsPerAPI[warp]; ok {
 
-			res, err := warpQuery(instructions, warp, ctx, lineStart)
+			res, err := warpQuery(instructions, warp, ctx, lineStart, allowAuthenticate)
 
 			if err != nil {
 				tsl.ErrCounter.Inc()
@@ -211,10 +213,10 @@ func promQuery(instructions []Instruction, prom string, ctx echo.Context, now ti
 }
 
 // Execute a Warp 10 request
-func warpQuery(instructions []Instruction, warp string, ctx echo.Context, lineStart int) (string, error) {
+func warpQuery(instructions []Instruction, warp string, ctx echo.Context, lineStart int, allowAuthenticate bool) (string, error) {
 
 	protoParser := ProtoParser{name: "warp 10", lineStart: lineStart}
-	warpscript, err := protoParser.GenerateWarpScript(instructions)
+	warpscript, err := protoParser.GenerateWarpScript(instructions, allowAuthenticate)
 	if err != nil {
 		return "", ctx.JSON(http.StatusBadRequest, NewError(err))
 	}

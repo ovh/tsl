@@ -86,6 +86,7 @@ func initConfig() {
 
 	// Set TSL default host
 	viper.SetDefault("tsl.default.endpoint", "http://127.0.0.1:9090")
+	viper.SetDefault("tsl.warp10.authenticate", false)
 
 	if viper.GetBool("verbose") {
 		log.SetLevel(log.DebugLevel)
