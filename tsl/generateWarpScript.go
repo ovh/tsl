@@ -560,6 +560,10 @@ func (protoParser *ProtoParser) getBucketize(selectStatement SelectStatement, fr
 		fillText = protoParser.getPolicy(fillPolicies)
 	}
 
+	if fillValue, ok := framework.attributes[SampleFillValue]; ok {
+		fillText = " [ NaN NaN NaN " + fillValue.lit + " ] FILLVALUE"
+	}
+
 	if !hasCount {
 		var isFrom bool
 		isFrom, auto = protoParser.getFromSampling(selectStatement)

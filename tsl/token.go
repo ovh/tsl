@@ -68,6 +68,7 @@ const (
 	DELTA
 	DIVSERIES
 	EQUAL
+	FILL
 	FILTERBYLABELS
 	FILTERBYNAME
 	FILTERBYLASTVALUE
@@ -198,6 +199,7 @@ var tokens = [...]string{
 	DELTA:             "delta",
 	DIVSERIES:         "div",
 	EQUAL:             "equal",
+	FILL:              "fill",
 	FILTERBYLABELS:    "filterByLabels",
 	FILTERBYNAME:      "filterByName",
 	FILTERBYLASTVALUE: "filterByLastValue",
@@ -336,6 +338,7 @@ const (
 	LastDate
 	SampleRelative
 	SampleFill
+	SampleFillValue
 	SampleAuto
 	SampleAggregator
 	SampleSpan
@@ -359,6 +362,7 @@ func (m PrefixAttributes) String() string {
 		LastDate:         "date",
 		SampleRelative:   "relative",
 		SampleFill:       "fill",
+		SampleFillValue:  "fillValue",
 		SampleAggregator: "aggregator",
 		SampleSpan:       "span",
 		SampleAuto:       "count",
