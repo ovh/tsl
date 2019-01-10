@@ -1,5 +1,11 @@
 package tsl
 
+//
+// This is the main scanner to tokenize TSL scripts
+// This code is mainly based on the work done by InfluxData Inc for InfluxQL and Flux scanners
+// Original code (c) 2013-2018 InfluxData Inc., shared under MIT License
+//
+
 import (
 	"bufio"
 	"bytes"
@@ -10,7 +16,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Scanner represents a lexical scanner for InfluxQL.
+// Scanner represents a lexical scanner.
 type Scanner struct {
 	r *reader
 }
