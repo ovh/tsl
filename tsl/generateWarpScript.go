@@ -1298,34 +1298,24 @@ func (protoParser *ProtoParser) getFromSampling(selectStatement SelectStatement)
 
 // Generate shift string value based on a String value
 func (protoParser *ProtoParser) parseShift(val string) string {
-	newVal := val[len(val)-1:]
+	twoEnd := val[len(val)-2:]
+	end := val[len(val)-1:]
 
-	switch newVal {
-	case "w":
-		return strings.TrimRight(val, "w") + " w"
-	case "d":
-		return strings.TrimRight(val, "d") + " d"
-	case "h":
-		return strings.TrimRight(val, "h") + " h"
-	case "m":
-		return strings.TrimRight(val, "m") + " m"
-	case "s":
-		return strings.TrimRight(val, "s") + " s"
+	switch twoEnd {
+	case "ms", "us", "ns", "ps":
+		return getUnit(val, twoEnd)
 	}
 
-	newVal2 := val[len(val)-2:]
-	switch newVal2 {
-	case "ms":
-		return strings.TrimRight(val, "ms") + " ms"
-	case "us":
-		return strings.TrimRight(val, "us") + " us"
-	case "ns":
-		return strings.TrimRight(val, "ns") + " ns"
-	case "ps":
-		return strings.TrimRight(val, "ps") + " ps"
+	switch end {
+	case "w", "d", "h", "m", "s":
+		return getUnit(val, end)
 	}
 
 	return ""
+}
+
+func getUnit(duration string, unit string) string {
+	return strings.TrimRight(duration, unit) + " " + unit
 }
 
 // Generate labels string from a list of whereField
