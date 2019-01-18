@@ -172,7 +172,7 @@ func (p *Parser) ParseStatement(oldConnectStatement *ConnectStatement, internCal
 
 	// Start instruction
 	instruction := &Instruction{}
-
+	instruction.createStatement.createSeries = make([]CreateSeries, 0)
 	instruction.connectStatement = *oldConnectStatement
 	newConnectStatement := oldConnectStatement
 	var err error
@@ -184,6 +184,27 @@ loop:
 
 		// Parse first instruction methods, that can be or CONNECT or SELECT
 		switch tok {
+
+		case CREATE:
+
+			// Parse select intern attributes
+			instruction, err = p.parseCreate(tok, pos, lit, instruction)
+
+			if err != nil {
+				return nil, nil, err
+			}
+
+			// Set has select instruction
+			instruction.hasSelect = true
+
+			// Parse post select methods
+			instruction, err = p.parseTimesSeriesOperators(instruction, internCall)
+
+			if err != nil {
+				return nil, nil, err
+			}
+			break loop
+
 		case SELECT:
 
 			// Parse select intern attributes
@@ -844,6 +865,228 @@ func (p *Parser) parseConnect(tok Token, pos Pos, lit string, instruction *Instr
 	}
 
 	return instruction, nil
+}
+
+// Create TSL method parser, for now accept create a set of Time Series
+func (p *Parser) parseCreate(tok Token, pos Pos, lit string, instruction *Instruction) (*Instruction, error) {
+	// Instantiate the Create
+	createStatement := &CreateStatement{}
+	createStatement.pos = pos
+	createStatement.createSeries = make([]CreateSeries, 0)
+	instruction.createStatement = *createStatement
+
+	nextTok, _, nextLit := p.ScanIgnoreDOT()
+
+	if nextTok != LPAREN {
+		errMessage := fmt.Sprintf("Expect a ( at Create statement, got %q", tokstr(nextTok, nextLit))
+		return nil, p.NewTslError(errMessage, pos)
+	}
+
+	inCreateMethod := true
+	for inCreateMethod {
+		createTok, createPos, createLit := p.ScanIgnoreWhitespace()
+
+		switch createTok {
+		case COMMA:
+			// Do nothing and continue parsing
+			continue
+		case SERIES:
+			var err error
+			instruction, err = p.parseCreateSeries(createTok, createPos, createLit, instruction)
+			if err != nil {
+				return nil, err
+			}
+		case RPAREN:
+			inCreateMethod = false
+		default:
+			errMessage := fmt.Sprintf("Unvalid method found %q, expect a creation method as series or a closing )", tokstr(createTok, createLit))
+			return nil, p.NewTslError(errMessage, createPos)
+		}
+	}
+
+	return instruction, nil
+}
+
+// Parse Create a single series method parser
+func (p *Parser) parseCreateSeries(tok Token, pos Pos, lit string, instruction *Instruction) (*Instruction, error) {
+	createSeries := &CreateSeries{}
+
+	createSeries.end = &InternalField{}
+
+	// Load select valid field parse given series name: can be a STRING or IDENT
+	zeroFields := []InternalField{{tokenType: IDENT}, {tokenType: ASTERISK}, {tokenType: STRING}}
+	selectFields := map[int][]InternalField{0: zeroFields}
+
+	// Next load all select fields, limit to 1
+	fields, err := p.ParseFields(SELECT.String(), selectFields, 1)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Set current select field into instruction
+	if fields[0].tokenType == STRING {
+		createSeries.metric = fields[0].lit
+	}
+
+	inCreateMethod := true
+	for inCreateMethod {
+		nextTok, nextPos, nextLit := p.ScanIgnoreDOT()
+
+		switch nextTok {
+		case SETLABELS:
+			var err error
+			instruction, createSeries, err = p.parseCreateSetLabels(nextTok, nextPos, nextLit, instruction, createSeries)
+			if err != nil {
+				return nil, err
+			}
+		case SETVALUES:
+			var err error
+			instruction, createSeries, err = p.parseCreateSetValues(nextTok, nextPos, nextLit, instruction, createSeries)
+			if err != nil {
+				return nil, err
+			}
+		case RPAREN, COMMA:
+			p.Unscan()
+			inCreateMethod = false
+			if len(createSeries.values) > 0 {
+				instruction.selectStatement.hasFrom = true
+				instruction.selectStatement.from = FromStatement{to: InternalField{tokenType: IDENT, lit: "$maxCreateTick"}, hasTo: true, from: InternalField{tokenType: IDENT, lit: "$minCreateTick"}}
+			}
+			instruction.createStatement.createSeries = append(instruction.createStatement.createSeries, *createSeries)
+		}
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	return instruction, nil
+}
+
+// Parse labels of a created a single series method parser
+func (p *Parser) parseCreateSetValues(tok Token, pos Pos, lit string, instruction *Instruction, createSeries *CreateSeries) (*Instruction, *CreateSeries, error) {
+	inCreateMethod := true
+
+	nextTok, _, nextLit := p.Scan()
+
+	if nextTok != LPAREN {
+		errMessage := fmt.Sprintf("Expect a ( at SetValues statement, got %q", tokstr(nextTok, nextLit))
+		return nil, nil, p.NewTslError(errMessage, pos)
+	}
+	hasEnd := false
+
+	for inCreateMethod {
+		nextTok, nextPos, nextLit := p.ScanIgnoreWhitespace()
+
+		switch nextTok {
+
+		case NUMBER, INTEGER, DURATIONVAL, NEGINTEGER, NEGNUMBER:
+			createSeries.end = &InternalField{tokenType: nextTok, lit: nextLit}
+
+			if hasEnd {
+				errMessage := fmt.Sprintf("single end date value was previously set in setValues, found %q", tokstr(nextTok, nextLit))
+				return nil, nil, p.NewTslError(errMessage, nextPos)
+			}
+			hasEnd = true
+
+			sepTok, sepPos, sepLit := p.ScanIgnoreWhitespace()
+
+			if sepTok == RPAREN {
+				p.Unscan()
+			} else if sepTok != COMMA {
+				errMessage := fmt.Sprintf("Expect a , at SetValues statement, got %q", tokstr(sepTok, sepLit))
+				return nil, nil, p.NewTslError(errMessage, sepPos)
+			}
+		case STRING:
+			if nextLit == NowValue.String() {
+				createSeries.end = &InternalField{tokenType: nextTok, lit: nextLit}
+			} else {
+				errMessage := fmt.Sprintf("Unvalid param found in setValue expect or a lastTick long, or now string, or a set of values, found %q", tokstr(nextTok, nextLit))
+				return nil, nil, p.NewTslError(errMessage, nextPos)
+			}
+
+			if hasEnd {
+				errMessage := fmt.Sprintf("single end date value was previously set in setValues, found %q", tokstr(nextTok, nextLit))
+				return nil, nil, p.NewTslError(errMessage, nextPos)
+			}
+			hasEnd = true
+
+			sepTok, sepPos, sepLit := p.ScanIgnoreWhitespace()
+
+			if sepTok == RPAREN {
+				p.Unscan()
+			} else if sepTok != COMMA {
+				errMessage := fmt.Sprintf("Expect a , at SetValues statement, got %q", tokstr(sepTok, sepLit))
+				return nil, nil, p.NewTslError(errMessage, sepPos)
+			}
+
+		case LBRACKET:
+			tickTok, tickPos, tickLit := p.ScanIgnoreWhitespace()
+
+			if tickTok != NUMBER && tickTok != DURATIONVAL && tickTok != INTEGER && tickTok != NEGINTEGER && tickTok != NEGNUMBER {
+				errMessage := fmt.Sprintf("Unvalid param found in setValue expect a tick as Number or duration, found %q", tokstr(tickTok, tickLit))
+				return nil, nil, p.NewTslError(errMessage, tickPos)
+			}
+
+			tickField := &InternalField{tokenType: tickTok, lit: tickLit}
+
+			sepTok, sepPos, sepLit := p.ScanIgnoreWhitespace()
+
+			if sepTok != COMMA {
+				errMessage := fmt.Sprintf("Expect a , at SetValues statement between tick and value, got %q", tokstr(sepTok, sepLit))
+				return nil, nil, p.NewTslError(errMessage, sepPos)
+			}
+
+			valueTok, valuePos, valueLit := p.ScanIgnoreWhitespace()
+
+			if valueTok != NUMBER && valueTok != DURATIONVAL && valueTok != INTEGER && valueTok != STRING && valueTok != NEGINTEGER && valueTok != NEGNUMBER {
+				errMessage := fmt.Sprintf("Unvalid param found in setValue expect a tick as Number or duration, found %q", tokstr(valueTok, valueLit))
+				return nil, nil, p.NewTslError(errMessage, valuePos)
+			}
+			valueField := &InternalField{tokenType: valueTok, lit: valueLit}
+
+			dataPoint := DataPoint{tick: tickField, value: valueField}
+
+			createSeries.values = append(createSeries.values, dataPoint)
+
+			endTok, endPos, endLit := p.ScanIgnoreWhitespace()
+
+			if endTok != RBRACKET {
+				errMessage := fmt.Sprintf("Expect a closing ] in set Values, got %q", tokstr(endTok, endLit))
+				return nil, nil, p.NewTslError(errMessage, endPos)
+			}
+
+			sepTok, sepPos, sepLit = p.ScanIgnoreWhitespace()
+
+			if sepTok == RPAREN {
+				p.Unscan()
+			} else if sepTok != COMMA {
+				errMessage := fmt.Sprintf("Expect a , at SetValues statement, got %q", tokstr(sepTok, sepLit))
+				return nil, nil, p.NewTslError(errMessage, sepPos)
+			}
+		case RPAREN:
+			inCreateMethod = false
+		default:
+			errMessage := fmt.Sprintf("Unvalid param found in setValue expect or a lastTick long, or now string, or a set of values, found %q", tokstr(nextTok, nextLit))
+			return nil, nil, p.NewTslError(errMessage, nextPos)
+		}
+
+	}
+	return instruction, createSeries, nil
+}
+
+// Parse labels of a created a single series method parser
+func (p *Parser) parseCreateSetLabels(tok Token, pos Pos, lit string, instruction *Instruction, createSeries *CreateSeries) (*Instruction, *CreateSeries, error) {
+	var err error
+
+	instruction.selectStatement.where = make([]WhereField, 0)
+	instruction, err = p.parseWhere(tok, pos, lit, instruction)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	createSeries.where = append(createSeries.where, instruction.selectStatement.where...)
+	return instruction, createSeries, nil
 }
 
 // Select TSL method parser

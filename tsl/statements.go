@@ -24,6 +24,7 @@ type Statements []*Instruction
 type Instruction struct {
 	connectStatement ConnectStatement
 	selectStatement  SelectStatement
+	createStatement  CreateStatement
 	globalOperator   GlobalOperator
 	isMeta           bool
 	hasSelect        bool
@@ -59,6 +60,27 @@ type ConnectStatement struct {
 	api         string
 	token       string
 	pos         Pos
+}
+
+// CreateStatement represents a TSL create series instruction
+type CreateStatement struct {
+	createSeries []CreateSeries
+	pos          Pos
+}
+
+// CreateSeries represents a new series data struct
+type CreateSeries struct {
+	metric    string
+	selectAll bool
+	where     []WhereField
+	values    []DataPoint
+	end       *InternalField
+}
+
+// DataPoint represents a new series data internal points
+type DataPoint struct {
+	tick  *InternalField
+	value *InternalField
 }
 
 // SelectStatement represents a TSL SELECT instruction

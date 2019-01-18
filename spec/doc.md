@@ -593,6 +593,32 @@ The update metrics meta-data in TSL you can use one of the following function:
 
 > None of those methods are currently available for **Prometheus**. 
 
+
+#### Create a series 
+
+At the same level as the select statement, you can use the **create** one. It will create a Time Series List. Create then accepts n series functions as parameter.
+
+Example: 
+
+```tsl
+create(series(), series())
+```
+
+The **series** method is used to create a Time Series, only in Warp 10 for now, you can give the Time Series name as parameter. To set the created series labels, you can use the **setLabels** method. You can also use the **setValues** to add values to this newly created series.
+
+The **setValues** takes n parameter, the first one (optional) is the base Timestamp of the values (by default zero). Then the other are a two elements array composed of a timestamp (that would be add to the base one) and the value to set. Use example: _.setValues([0, 1], [100, 2])._
+
+At the end of the create statement, all other Time Series method can be apply on.
+
+A more complex but valid tsl statement to create 2 Time Series would be:
+
+```tsl
+create(series("test").setLabels(["l0=42","l1=42"]).setValues("now", [-5m, 2], [0, 1]).setValues("now",[2m, 3]),series("test2").setLabels(["l0=42","l1=42"]).setValues("now", [-5m, 2], [0, 1]))
+	 .sampleBy(30s, max)
+``` 
+
+
+
 #### Global series operator
 
 TSL can also be used to store query result back on the backend. 
