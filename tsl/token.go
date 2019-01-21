@@ -62,6 +62,7 @@ const (
 	CEIL
 	CONNECT
 	COUNT
+	CREATE
 	CUMULATIVE
 	CUMULATIVESUM
 	DAY
@@ -127,6 +128,9 @@ const (
 	SAMPLEBY
 	SELECT
 	SELECTORS
+	SERIES
+	SETLABELS
+	SETVALUES
 	SHIFT
 	SHRINK
 	SORT
@@ -193,6 +197,7 @@ var tokens = [...]string{
 	CEIL:              "ceil",
 	CONNECT:           "connect",
 	COUNT:             "count",
+	CREATE:            "create",
 	CUMULATIVE:        "cumulative",
 	CUMULATIVESUM:     "cumulativeSum",
 	DAY:               "day",
@@ -258,6 +263,9 @@ var tokens = [...]string{
 	SAMPLEBY:          "sampleBy",
 	SELECT:            "select",
 	SELECTORS:         "selectors",
+	SERIES:            "series",
+	SETLABELS:         "setLabels",
+	SETVALUES:         "setValues",
 	SHIFT:             "shift",
 	SHRINK:            "shrink",
 	SORT:              "sort",
@@ -351,6 +359,7 @@ const (
 	NValue
 	KeepDistinct
 	GroupIsWithout
+	NowValue
 )
 
 func (m PrefixAttributes) String() string {
@@ -374,6 +383,7 @@ func (m PrefixAttributes) String() string {
 		Aggregator:       "aggregator",
 		KeepDistinct:     "keepDistinct",
 		NValue:           "n",
+		NowValue:         "now",
 	}
 	if str, ok := typeToStr[m]; ok {
 		return str

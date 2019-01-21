@@ -320,6 +320,9 @@ func (s *Scanner) scanNumber() (tok Token, pos Pos, lit string) {
 					break
 				}
 			}
+			if isNeg {
+				return DURATIONVAL, pos, "-" + buf.String()
+			}
 			return DURATIONVAL, pos, buf.String()
 		}
 		s.r.unread()

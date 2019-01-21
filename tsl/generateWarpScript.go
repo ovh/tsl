@@ -112,12 +112,24 @@ func (protoParser *ProtoParser) processWarpScriptInstruction(instruction Instruc
 	}
 
 	if instruction.hasSelect {
-		fetch, err := protoParser.getFetch(instruction.selectStatement, instruction.connectStatement.token, prefix)
-		if err != nil {
-			return "", nil
-		}
+
 		buffer.WriteString(prefix)
-		buffer.WriteString(fetch)
+		if len(instruction.createStatement.createSeries) > 0 {
+			create, err := protoParser.getCreateSeries(instruction.createStatement, prefix)
+			if err != nil {
+				return "", nil
+			}
+
+			buffer.WriteString(create)
+
+		} else {
+			fetch, err := protoParser.getFetch(instruction.selectStatement, instruction.connectStatement.token, prefix)
+			if err != nil {
+				return "", nil
+			}
+
+			buffer.WriteString(fetch)
+		}
 		buffer.WriteString("\n")
 
 		op, err := protoParser.getFrameworksOp(instruction.selectStatement, prefix)
@@ -412,6 +424,68 @@ func (protoParser *ProtoParser) operatorBy(framework FrameworkStatement, hasBy b
 	operatorString := toWarpScript[framework.operator]
 
 	return byMacro + operatorString + value, nil
+}
+
+// Generate a create series statement
+func (protoParser *ProtoParser) getCreateSeries(createStatement CreateStatement, prefix string) (string, error) {
+	var buffer bytes.Buffer
+
+	buffer.WriteString(prefix + "MAXLONG -1 * 'maxCreateTick' STORE\n")
+	buffer.WriteString(prefix + "MAXLONG 'minCreateTick' STORE\n")
+	buffer.WriteString(prefix + "[\n")
+
+	for _, createSeries := range createStatement.createSeries {
+		buffer.WriteString(prefix + "    NEWGTS '")
+		buffer.WriteString(createSeries.metric)
+		buffer.WriteString("' RENAME ")
+		buffer.WriteString(protoParser.getFetchLabels(createSeries.where))
+		buffer.WriteString(" RELABEL")
+		buffer.WriteString("\n")
+
+		for _, value := range createSeries.values {
+			buffer.WriteString(prefix + "    ")
+
+			tick := value.tick.lit
+
+			if value.tick.tokenType == DURATIONVAL {
+				tick = protoParser.parseShift(value.tick.lit)
+			}
+
+			if createSeries.end.lit != "" {
+
+				end := createSeries.end.lit
+
+				if createSeries.end.tokenType == STRING && createSeries.end.lit == NowValue.String() {
+					end = "NOW"
+				}
+
+				if createSeries.end.tokenType == DURATIONVAL {
+					end = protoParser.parseShift(value.tick.lit)
+				}
+
+				tick = end + " " + tick + " +"
+			}
+
+			buffer.WriteString("$maxCreateTick " + tick + " MAX 'maxCreateTick' STORE\n")
+			buffer.WriteString("$minCreateTick " + tick + " MIN 'minCreateTick' STORE\n")
+			buffer.WriteString(prefix + "    ")
+			buffer.WriteString(tick)
+			buffer.WriteString(" NaN NaN NaN ")
+
+			valueString := value.value.lit
+
+			if value.value.tokenType == STRING {
+				valueString = "'" + valueString + "'"
+			} else if value.value.tokenType == DURATIONVAL {
+				valueString = protoParser.parseShift(value.value.lit)
+			}
+			buffer.WriteString(valueString)
+			buffer.WriteString(" ADDVALUE\n")
+		}
+	}
+
+	buffer.WriteString(prefix + "]\n")
+	return buffer.String(), nil
 }
 
 // Generate a fetch statement
@@ -1207,8 +1281,9 @@ func (protoParser *ProtoParser) getLabelsListString(fields []string) string {
 func (protoParser *ProtoParser) getLastTimestamp(selectStatement SelectStatement) (string, error) {
 	if selectStatement.hasFrom {
 		if selectStatement.from.hasTo {
-
-			if selectStatement.from.to.tokenType == STRING {
+			if selectStatement.from.to.tokenType == IDENT {
+				return selectStatement.from.to.lit, nil
+			} else if selectStatement.from.to.tokenType == STRING {
 				return "'" + selectStatement.from.to.lit + "' TOTIMESTAMP", nil
 			} else if selectStatement.from.to.tokenType == INTEGER {
 				return selectStatement.from.to.lit, nil
@@ -1279,7 +1354,9 @@ func (protoParser *ProtoParser) getFrom(selectStatement SelectStatement) string 
 // Get getFromSampling  return true if from, and from sampling value as number
 func (protoParser *ProtoParser) getFromSampling(selectStatement SelectStatement) (bool, string) {
 	if selectStatement.hasFrom {
-		if selectStatement.from.from.tokenType == STRING {
+		if selectStatement.from.from.tokenType == IDENT {
+			return true, selectStatement.from.from.lit
+		} else if selectStatement.from.from.tokenType == STRING {
 			return true, "'" + selectStatement.from.from.lit + "' TOTIMESTAMP"
 		}
 		return true, selectStatement.from.from.lit
