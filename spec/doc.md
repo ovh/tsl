@@ -172,7 +172,7 @@ The **sampleBy** method expects as first parameter (mandatory):
 
 The **sampleBy** method expects as second parameter (mandatory):
 
-* An **aggregator** function to use: can be one of **max, mean, min, first, last, sum, join, median, count, and** or **or**. TSL expects the aggregator to be set as an ident field.
+* An **aggregator** function to use: can be one of **max, mean, min, first, last, sum, join, median, count, percentile, and** or **or**. TSL expects the aggregator to be set as an ident field.
 
 The **sampleBy** method takes also two optionals parameters: 
 
@@ -226,7 +226,7 @@ To resume **sampleBy** valid parameters are listed below. A parameter can be opt
 |------|------|-----------|--------|---------------------------|
 | span | Duration value | <i class="fas fa-check"></i> | span | |
 | count | Number | <i class="fas fa-check"></i> | count | |
-| aggregator | Operator | <i class="fas fa-check"></i> | aggregator | Operator value can be one of: **max, mean, min, first, last, sum, join, median, count, and, or** |
+| aggregator | Operator | <i class="fas fa-check"></i> | aggregator | Operator value can be one of: **max, mean, min, first, last, sum, join, median, count, percentile, and, or** |
 | fill | String | <i class="fas fa-times"></i> | fill | Fill value can be one of **auto, none, interpolate, next, previous** |
 | fill | List of string | <i class="fas fa-times"></i> | fill | Each values of the list can be one of **interpolate, next, previous** |
 | relative | Boolean | <i class="fas fa-times"></i> | relative | |
@@ -239,7 +239,7 @@ The **group** method will generate a single series using the specified aggregato
 
 The group method takes one parameter:
 
-* The aggregator function to use: can be one of **max, mean, min, sum, join, median, count, and** or **or**. TSL expects the policy to be set as an ident field.
+* The aggregator function to use: can be one of **max, mean, min, sum, join, median, count, percentile, and** or **or**. TSL expects the policy to be set as an ident field.
 
 ```
 // Valid parameters prefix
@@ -254,7 +254,7 @@ The **groupBy** method allow to specify labels to limit the aggegator on series 
 The groupBy method takes two to n parameters:
 
 * A labels key as string to group the data on. To select more than one label string you can use a label string list as parameter
-* The aggregator function to use: can be one of **max, mean, min, sum, join, median, count, and** or **or**. TSL expects the policy to be set as an ident field.
+* The aggregator function to use: can be one of **max, mean, min, sum, join, median, count, percentile, and** or **or**. TSL expects the policy to be set as an ident field.
 
 Example:
 
@@ -278,7 +278,7 @@ To resume **groupBy** valid parameters are listed below. A parameter can be opti
 |------|------|-----------|--------|---------------------------|
 | label | String | <i class="fas fa-check"></i> | None | a label key as first parameter |
 | labels | List of string | <i class="fas fa-check"></i> | None | a label key list as first parameter |
-| aggregator | Operator | <i class="fas fa-check"></i> | None | Operator value can be one of: **max, mean, min, sum, join, median, count, and** or **or** as second parameter |
+| aggregator | Operator | <i class="fas fa-check"></i> | None | Operator value can be one of: **max, mean, min, sum, join, median, count, percentile, and** or **or** as second parameter |
 
 ### Metrics values operators
 
@@ -288,7 +288,7 @@ This can be done using the TSL **window** method.
 
 The **window** method expects
 
-* At least a **window function** to use: can be one of **max, mean, min, first, last, sum, delta, stddev, stdvar, join, median, count, and** or **or**. TSL expects the window function to be set as an ident field.
+* At least a **window function** to use: can be one of **max, mean, min, first, last, sum, delta, stddev, stdvar, join, median, count, percentile, and** or **or**. TSL expects the window function to be set as an ident field.
 * A single duration time window to compute the **over_time** method on for **Prometheus** or **Warp10**.
 * **Warp10** MAP frame supports two parameters as TSL window function a [pre and/or post](http://www.warp10.io/reference/frameworks/framework-map/) parameter. The **pre** and **post** parameters can be a number of points to compute the window on, or a duration if the series was sampled before.
 
@@ -318,7 +318,7 @@ select("sys.cpu.nice")
 
 Instead of the window function, the **cumulative** method can aslo be applied. It takes:
 
-* A **window function** to use: can be one of **max, mean, min, first, last, sum, delta, stddev, stdvar, join, median, count, and** or **or**. TSL expects the window function to be set as an ident field.
+* A **window function** to use: can be one of **max, mean, min, first, last, sum, delta, stddev, stdvar, join, median, count, percentile, and** or **or**. TSL expects the window function to be set as an ident field.
 
 This function will apply the function on all windows that appears before each points. This can be useful to complete a cumulative sum on a time series.
 
