@@ -2804,7 +2804,14 @@ func (p *Parser) ParseFields(function string, internalFields map[int][]InternalF
 
 			}
 
-			if hasPrefix {
+			isEq, _, _ := p.ScanIgnoreWhitespace()
+
+			p.Unscan()
+
+			isPrefix := tok == FILL && isEq == EQ
+
+			if hasPrefix && isPrefix {
+
 				// remove the allowed prefix
 				tok, pos, lit = p.ScanIgnoreWhitespace()
 

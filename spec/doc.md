@@ -189,7 +189,7 @@ The **sampleBy** method expects as second parameter (mandatory):
 The **sampleBy** method takes also two optionals parameters: 
 
 * A boolean to indicate whether we should keep a relative sampling (true) or use an absolute one (default, and params at false): absolute sampling means that data would be round up (ex: with a 5 minutes span series at time 12:03 it would be 12:05, 12:00, 11:55, when with a relative sampling times would be at 12:03, 11:58, 11:53).
-* A sampling policy can be **auto, none, interpolate, next** or **previous**. TSL expects the policy to be set as string (example "auto") or a list of strings, containing the policiy to apply in order. This list is restrained to values equals to **interpolate, next or previous**. Using **interpolate** policy will compute the interpolation of the intermediary values, **next** will fill missing values with the next values it found, and **previous** will fill missing values by the previous value of the series found. The **none** one will let empty missing values. When **auto** means that an interpolation is applied first to field intermediary missing values, previous to fill missing values before the first data-point and next to fill missing values after the last data-point. When no policy it's set it used **auto** by default.
+* A sampling policy can be **auto, none, interpolate, next** or **previous**. TSL expects the policy to be set as string (example "auto") or a list of strings, containing the policiy to apply in order. This list is restrained to values equals to **interpolate, next or previous**. Using **interpolate** policy will compute the interpolation of the intermediary values, **next** will fill missing values with the next values it found, and **previous** will fill missing values by the previous value of the series found. The **none** one will let empty missing values. When **auto** means that an interpolation is applied first to field intermediary missing values, previous to fill missing values before the first data-point and next to fill missing values after the last data-point. To fill missing value you can also use the method **fill** as policy. Fill expects a single parameter, the value to fill the series with. When no policy it's set it used **auto** by default.
 
 > The duration format is a number followed by one of **w** for week(s), **d** for day(s), **h** for hour(s), **m** for minute(s), **s** for second(s), **ms** for milli-second(s), **us** for micro-second(s), **ns** for nano-second(s) and **ps** for pico-second(s)
 
@@ -230,6 +230,16 @@ select("sys.cpu.nice")
 select("sys.cpu.nice")
   .from(1346846400000000,1346847000006000)
   .sampleBy(span=1m, aggregator="mean", fill=["interpolate", "next", "previous"], relative=false)
+
+// Using the fill value method policy to fill missing values by Zero
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(span=1m, aggregator="mean", fill=fill(0), relative=false)
+  
+// Using the fill value method policy to fill missing values by Zero
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(span=1m, aggregator="mean", fill(0), relative=false)
 ```
 
 To resume **sampleBy** valid parameters are listed below. A parameter can be optional or mandatory. When a prefix is indicated, it means that this parameter can be set using a prefix name.
