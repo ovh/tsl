@@ -159,6 +159,18 @@ To resume **last** valid parameters are listed below. A parameter can be optiona
 | timestamp | Integer, Double | <i class="fas fa-times"></i> | timestamp | Only on Prometheus |
 | shift | Duration value |<i class="fas fa-times"></i> | shift | |
 
+### Warp 10 attribute policy
+
+In the case you are using TSL on **Warp 10**, the **attributePolicy** method allow you to choose how to handle the attributes in TSL series set result. You can choose between **merging** the Attributes with the series Labels, between keeping them **splitted** from the labels or simply **remove** them. By default TSL kept the split mode. The **attributePolicy** valid parameter is one of **merge**, **split** or **remove**.
+
+```
+select("sys.cpu.nice").where("dc=lga", "web~.*")
+  .last(2m, shift=1h)
+  .attributePolicy(remove)
+```
+
+The **attributePolicy** method should be put right after a select statement, as a **where**, **from** or **last** method but before any further metrics operations.
+
 ### Sampling
 
 When collecting servers or application metrics, the data stored are often unsynchronised. To start processing our stored metrics, it's often mandatory to sample the data. Sampling the data corresponds to split metrics data points per time window. All values in this time window are send as parameter to a function that will provide one value as result.
@@ -604,8 +616,8 @@ connect("prometheus","http://localhost:9090","user","pwd")
 
 The update metrics meta-data in TSL you can use one of the following function:
 
-* The **addNamePrefix** to add a **prefix** to each metrics of a set. Use example: _.addNamePrefix("prefix")._
-* The **addNameSuffix** to add a **suffix** to each metrics of a set. Use example: _.addNameSuffix("suffix")._
+* The **addPrefix** to add a **prefix** to each metrics name of a set. Use example: _.addPrefix("prefix")._
+* The **addSuffix** to add a **suffix** to each metrics name of a set. Use example: _.addSuffix("suffix")._
 * The **rename** to rename each metrics of a set. Use example: _.rename("newName")._
 * The **renameBy** to rename each metrics per one of it's labels. Use example: _.renameBy("host")._
 * The **removeLabels** to remove one or several labels of a metrics set. Use example: _.removeLabels("host", "dc")._
