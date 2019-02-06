@@ -417,7 +417,18 @@ func (protoParser *ProtoParser) operatorBy(framework FrameworkStatement, hasBy b
 		return prefix + value, nil
 	}
 
-	bucketizer := "bucketizer." + aggregator
+	paramValue := ""
+	if len(framework.unNamedAttributes) == 1 {
+		if framework.unNamedAttributes[0].tokenType == STRING {
+			paramValue = "'" + framework.unNamedAttributes[0].lit + "' "
+		} else if framework.unNamedAttributes[0].tokenType == DURATIONVAL {
+			paramValue = protoParser.parseShift(framework.unNamedAttributes[0].lit) + " "
+		} else {
+			paramValue = framework.unNamedAttributes[0].lit + " "
+		}
+	}
+
+	bucketizer := paramValue + "bucketizer." + aggregator
 
 	byMacro := "<% [ SWAP " + bucketizer + " 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> "
 
@@ -825,7 +836,17 @@ func (protoParser *ProtoParser) getMapper(framework FrameworkStatement, sampleSp
 	case CUMULATIVE, WINDOW:
 		aggregator := framework.attributes[Aggregator]
 
-		mapper = "mapper." + aggregator.tokenType.String()
+		paramValue := ""
+		if len(framework.unNamedAttributes) == 1 {
+			if framework.unNamedAttributes[0].tokenType == STRING {
+				paramValue = "'" + framework.unNamedAttributes[0].lit + "' "
+			} else if framework.unNamedAttributes[0].tokenType == DURATIONVAL {
+				paramValue = protoParser.parseShift(framework.unNamedAttributes[0].lit) + " "
+			} else {
+				paramValue = framework.unNamedAttributes[0].lit + " "
+			}
+		}
+		mapper = paramValue + "mapper." + aggregator.tokenType.String()
 		switch aggregator.tokenType {
 		case STDDEV, STDVAR:
 			mapper = toWarpScript[aggregator.tokenType]

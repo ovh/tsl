@@ -314,6 +314,21 @@ select("sys.cpu.nice")
 select("sys.cpu.nice")
   .from(1346846400000000,1346847000006000)
   .window(sum, 2, 10)
+
+// With percentile operator, with pre and post (Warp10)
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .window(percentile, 42, 2, 10)
+
+// With percentile operator, without pre and post (Warp10)
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .window(percentile, 42)
+
+// With join operator, with pre and post (Warp10)
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .window(join, '-', 2, 10)
 ```
 
 Instead of the window function, the **cumulative** method can aslo be applied. It takes:
@@ -323,18 +338,24 @@ Instead of the window function, the **cumulative** method can aslo be applied. I
 This function will apply the function on all windows that appears before each points. This can be useful to complete a cumulative sum on a time series.
 
 ```
-// With only a duration (Prometheus or Warp10)
+// Cumulative with sum
 select("sys.cpu.nice")
   .from(1346846400000000,1346847000006000)
   .sampleBy(1m, "last")
   .cumulative(sum)
 
 
-// With only a duration (Prometheus or Warp10)
+// Cumulative with delta
 select("sys.cpu.nice")
   .from(1346846400000000,1346847000006000)
   .sampleBy(1m, "last")
   .cumulative(delta)
+
+// Cumulative with Percentile
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(1m, "last")
+  .cumulative(percentile, 42)
 ```
 
 > The **cumulative** operator is not available on **Prometheus**.
@@ -407,12 +428,12 @@ TSL introduces some methods to sort metrics by their samples values.
 
 * The **sort** operator used to sort metrics data by their globals **mean** value in **ascending** order. Use example: _.sort()._
 * The **sortDesc** operator used to sort metrics data by their globals **mean** value in **descending** order. Use example: _.sortDesc()._
-* The **sortBy** operator used to sort metrics data according to the result of a **global operator** in **ascending** order. The operator function can be one of: **last, first, max, mean, min, sum, join, median, count, and** or **or**. Use example: _.sortBy(max)._
-* The **sortDescBy** operator used to sort metrics data according to the result of a **global operator** in **descending** order. The operator function can be one of: **last, first, max, mean, min, sum, join, median, count, and** or **or**. Use example: _.sortDescBy(max).
+* The **sortBy** operator used to sort metrics data according to the result of a **global operator** in **ascending** order. The operator function can be one of: **last, first, max, mean, min, sum, median, count, percentile, and** or **or**. Use example: _.sortBy(max)._, _.sortBy(percentile, 42)._
+* The **sortDescBy** operator used to sort metrics data according to the result of a **global operator** in **descending** order. The operator function can be one of: **last, first, max, mean, min, sum, median, count, percentile, and** or **or**. Use example: _.sortDescBy(max).
 * The **topN** operator used to get the top N series (sorted by their globals **mean** value in **descending** order) Use example: _.topN(2)._
 * The **bottomN** operator used to get the lowest N series (sorted by their globals **mean** value in **ascending** order). Use example: _.bottomN(2)._
-* The **topNBy** operator used to get the top N series (sorted according to the result of a **global operator** in **descending** order. The operator function can be one of: **last, first, max, mean, min, sum, join, median, count, and** or **or**). Use example: _.topNBy(2, min)._
-* The **bottomNBy** operator used to get the lowest N series (sorted according to the result of a **global operator** in **ascending** order. The operator function can be one of: **last, first, max, mean, min, sum, join, median, count, and** or **or**). Use example: _.topNBy(2, max)._
+* The **topNBy** operator used to get the top N series (sorted according to the result of a **global operator** in **descending** order. The operator function can be one of: **last, first, max, mean, min, sum, median, count, percentile, and** or **or**). Use example: _.topNBy(2, min)._, _.topNBy(2, percentile, 42)._
+* The **bottomNBy** operator used to get the lowest N series (sorted according to the result of a **global operator** in **ascending** order. The operator function can be one of: **last, first, max, mean, min, sum, median, count, percentile, and** or **or**). Use example: _.topNBy(2, max)._
 
 > The **sortBy**, **sortDescBy**, **topNBy** and **bottomNBy** operators are not available for **Prometheus**.
 

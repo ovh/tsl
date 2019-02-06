@@ -1884,24 +1884,24 @@ func (p *Parser) parseOperatorBy(tok Token, pos Pos, lit string, instruction *In
 	opBy.unNamedAttributes = make(map[int]InternalField)
 
 	// Load first field possible type
-	zeroFields := []InternalField{
+	aggregatorFields := []InternalField{
 		{tokenType: MEAN},
 		{tokenType: MAX},
 		{tokenType: LAST},
 		{tokenType: FIRST},
 		{tokenType: MIN},
 		{tokenType: SUM},
-		{tokenType: JOIN},
 		{tokenType: MEDIAN},
 		{tokenType: COUNT},
 		{tokenType: ANDL},
 		{tokenType: ORL},
+		{tokenType: PERCENTILE},
 		{tokenType: INTEGER, prefixName: Aggregator, hasPrefixName: true},
 		{tokenType: INTEGER},
 	}
 
 	// Load first field possible type
-	oneFields := []InternalField{
+	paramFields := []InternalField{
 		{tokenType: INTEGER, prefixName: Aggregator, hasPrefixName: true},
 		{tokenType: INTEGER},
 	}
@@ -1912,8 +1912,11 @@ func (p *Parser) parseOperatorBy(tok Token, pos Pos, lit string, instruction *In
 	var err error
 	var fields map[int]InternalField
 
+	// Index to skip (aggregators parameters)
+	skippedIndex := make(map[int]bool)
+
 	if !hasArg {
-		fields, err = p.ParseFields(tok.String(), map[int][]InternalField{0: zeroFields}, 1)
+		fields, err = p.ParseFields(tok.String(), map[int][]InternalField{0: aggregatorFields, 1: paramFields}, 2)
 		if err != nil {
 			return nil, err
 		}
@@ -1924,10 +1927,24 @@ func (p *Parser) parseOperatorBy(tok Token, pos Pos, lit string, instruction *In
 				field.lit = field.tokenType.String()
 			}
 			opBy.attributes[Aggregator] = field
+			if field.tokenType == PERCENTILE {
+
+				var err error
+				opBy, _, err = p.manageValueAggregator(opBy, pos, tok, field, fields, 0, skippedIndex)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				if len(fields) > 1 {
+					errMessage := fmt.Sprintf("%q expects at most 1 field(s)", tok.String())
+					return nil, p.NewTslError(errMessage, pos)
+				}
+			}
+
 		}
 	} else {
 
-		fields, err = p.ParseFields(tok.String(), map[int][]InternalField{1: zeroFields, 0: oneFields}, 2)
+		fields, err = p.ParseFields(tok.String(), map[int][]InternalField{1: aggregatorFields, 0: paramFields, 2: paramFields}, 3)
 		if err != nil {
 			return nil, err
 		}
@@ -1938,6 +1955,12 @@ func (p *Parser) parseOperatorBy(tok Token, pos Pos, lit string, instruction *In
 
 		// Validate all received fields
 		for index, field := range fields {
+
+			// Skip opBy aggregator parameter
+			if _, exists := skippedIndex[index]; exists {
+				continue
+			}
+
 			if index == 0 && field.tokenType == INTEGER {
 				if reZeroOnly.MatchString(lit) {
 					errMessage := fmt.Sprintf("The %q function cannot work with %q param, expect a value > 0", tok.String(), lit)
@@ -1949,6 +1972,19 @@ func (p *Parser) parseOperatorBy(tok Token, pos Pos, lit string, instruction *In
 					field.lit = field.tokenType.String()
 				}
 				opBy.attributes[Aggregator] = field
+				if field.tokenType == PERCENTILE {
+
+					var err error
+					opBy, skippedIndex, err = p.manageValueAggregator(opBy, pos, tok, field, fields, index, skippedIndex)
+					if err != nil {
+						return nil, err
+					}
+				} else {
+					if len(fields) > 2 {
+						errMessage := fmt.Sprintf("%q expects at most 2 field(s)", tok.String())
+						return nil, p.NewTslError(errMessage, pos)
+					}
+				}
 				continue
 			} else {
 				errMessage := fmt.Sprintf("The %q function encountered an error when parsing its parameter", tok.String())
@@ -2555,6 +2591,7 @@ func (p *Parser) parseAggregatorFunction(tok Token, pos Pos, lit string, instruc
 	op.pos = pos
 	op.operator = tok
 	op.attributes = make(map[PrefixAttributes]InternalField)
+	op.unNamedAttributes = make(map[int]InternalField)
 
 	minField := 1
 	maxField := 1
