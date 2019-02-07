@@ -691,7 +691,7 @@ loop:
 				return nil, err
 			}
 
-		case TIMECLIP, TIMEMODULO, TIMESPLIT:
+		case TIMECLIP, TIMEMODULO, TIMESPLIT, QUANTIZE:
 			instruction, err = p.parseOperators(tok, pos, lit, instruction)
 
 			if err != nil {
@@ -2312,6 +2312,12 @@ func (p *Parser) parseOperators(tok Token, pos Pos, lit string, instruction *Ins
 		paramsField[2] = []InternalField{{tokenType: STRING}}
 		maxFieldLength = 3
 		minFieldLength = 3
+	case QUANTIZE:
+		paramsField[0] = []InternalField{{tokenType: STRING}}
+		paramsField[1] = []InternalField{{tokenType: INTEGER}, {tokenType: NUMBER}, {tokenType: INTERNALLIST}}
+		paramsField[2] = []InternalField{{tokenType: INTEGER}, {tokenType: NUMBER}, {tokenType: DURATIONVAL}}
+		maxFieldLength = 3
+		minFieldLength = 2
 	}
 
 	// Load expected fields

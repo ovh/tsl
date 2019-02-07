@@ -115,6 +115,7 @@ const (
 	PERCENTILE
 	PROM
 	PROMETHEUS
+	QUANTIZE
 	RATE
 	REMOVE
 	REMOVELABELS
@@ -250,6 +251,7 @@ var tokens = [...]string{
 	PERCENTILE:        "percentile",
 	PROM:              "prom",
 	PROMETHEUS:        "prometheus",
+	QUANTIZE:          "quantize",
 	RATE:              "rate",
 	REMOVELABELS:      "removeLabels",
 	REMOVE:            "remove",
