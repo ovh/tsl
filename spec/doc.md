@@ -60,6 +60,15 @@ select("sys.cpu.nice").where("dc=lga", "web~.*")
 
 > You can chain as many where clauses as wanted in a TSL query, example: select(...).where(...).where(...) as long as you are defining the data to retrieve.
 
+### Retrieve only series meta-data
+
+TSL includes post-select statements to return only the series names, labels or selectors of the select results. The available methods are:
+
+* The **names** method return the unique names of a series set, example: _.names()_
+* The **labels** method return the unique labels maps of a series set. To retrieve a specific label values you can add a label key string as parameter to the **labels** function. It will then return the unique values for this specific label. Examples: _.labels()_, _.labels("host")_
+* The **attributes** method return the unique attributes maps of a series set. To retrieve a specific attribute values you can add an attribute key string as parameter to the **attributes** function. It will then return the unique values for this specific attribute. Examples: _.attributes()_, _.attributes("host")_
+* The **selectors** method return the unique selectors string of a series set, example: _.selectors()_
+
 ### From or Last
 
 The last methods to define the data to retrieve are **last** and **from**. They are used to set the time limits to retrieve the data.

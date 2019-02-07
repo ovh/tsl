@@ -361,7 +361,7 @@ func (protoParser ProtoParser) getMeta(selectStatement SelectStatement, token st
 
 	for _, framework := range selectStatement.frameworks {
 		switch framework.operator {
-		case NAMES, SELECTORS, LABELS:
+		case NAMES, SELECTORS, LABELS, ATTRIBUTES:
 			return protoParser.getFind(selectStatement, token, framework)
 		}
 	}
@@ -382,6 +382,8 @@ func (protoParser ProtoParser) getFind(selectStatement SelectStatement, token st
 		op = "TOSELECTOR"
 	case LABELS:
 		op = "LABELS"
+	case ATTRIBUTES:
+		op = "ATTRIBUTES"
 	}
 
 	metric := selectStatement.metric
@@ -390,7 +392,7 @@ func (protoParser ProtoParser) getFind(selectStatement SelectStatement, token st
 	}
 	suffix := ""
 
-	if framework.operator == LABELS && len(framework.unNamedAttributes) > 0 {
+	if (framework.operator == LABELS || framework.operator == ATTRIBUTES) && len(framework.unNamedAttributes) > 0 {
 		suffix = "'" + framework.unNamedAttributes[0].lit + "' GET"
 	}
 

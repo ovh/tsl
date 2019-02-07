@@ -57,6 +57,7 @@ const (
 	ADDSERIES
 	ANDL
 	ATTRIBUTEPOLICY
+	ATTRIBUTES
 	BOTTOMN
 	BOTTOMNBY
 	CEIL
@@ -193,6 +194,7 @@ var tokens = [...]string{
 	ADDSERIES:         "add",
 	ANDL:              "and",
 	ATTRIBUTEPOLICY:   "attributePolicy",
+	ATTRIBUTES:        "attributes",
 	BOTTOMN:           "bottomN",
 	BOTTOMNBY:         "bottomNBy",
 	CEIL:              "ceil",

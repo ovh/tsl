@@ -568,7 +568,7 @@ loop:
 		// Parse valid post select methods that can be one time method: from or last and an undefinite number of where
 		switch tok {
 
-		case NAMES, LABELS, SELECTORS:
+		case NAMES, LABELS, SELECTORS, ATTRIBUTES:
 
 			if internalCall || instruction.isGlobalOperator || instruction.selectStatement.timeSet {
 				errMessage := fmt.Sprintf("Function %q, expects to stand on a single select statement", tok.String())
@@ -1159,7 +1159,7 @@ func (p *Parser) parseSelectMeta(tok Token, pos Pos, lit string, instruction *In
 
 	operatorCount := 0
 
-	if tok == LABELS {
+	if tok == LABELS || tok == ATTRIBUTES {
 		operatorCount = 1
 	}
 
