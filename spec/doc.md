@@ -457,6 +457,15 @@ The following TSL methods can be used to apply limit operators on metrics:
 * The **maxWith** operator. MaxWith will test all values to keep only the one **above maxWith parameter** and **replace** all other values per maxWith parameter, example: *.maxWith(2)*
 * The **minWith** operator. MinWith will test all values to keep only the one **below minWith parameter** and **replace** all other values per minWith parameter, example: *.minWith(2)*
 
+#### Metrics type convertor
+
+The following TSL methods can be used to convert metrics values:
+
+* The **toboolean** operator used to convert all metrics values to boolean, example: _.toboolean()._
+* The **todouble** operator used to convert all metrics values to double, example: _.todouble()._
+* The **tolong** operator used to convert all metrics values to long, example: _.tolong()._
+* The **tostring** operator used to convert all metrics values to long, example: _.tostring()._
+
 #### Metrics time operators
 
 The following TSL methods can be used to apply time related operators on metrics:
