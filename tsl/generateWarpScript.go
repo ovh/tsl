@@ -1166,9 +1166,7 @@ func (protoParser *ProtoParser) filterWarpScript(framework FrameworkStatement) (
 	case FILTERBYLABELS:
 		filterType = "bylabels"
 
-		log.Warn("test")
 		filtersField := make([]WhereField, len(paramStrings))
-		log.Warn("test")
 		for index, label := range paramStrings {
 			whereItem, err := protoParser.getWhereField(label, framework.pos)
 			if err != nil {
@@ -1176,12 +1174,10 @@ func (protoParser *ProtoParser) filterWarpScript(framework FrameworkStatement) (
 			}
 			log.Warn(index)
 			filtersField[index] = *whereItem
-			//aramStrings[index] = "'" + whereItem.key + "' '" + whereItem.op.String() + whereItem.value + "'"
 		}
 
 		log.Warn(filtersField)
 		value += protoParser.getFetchLabels(filtersField)
-		//value += "{ "
 
 	case FILTERBYNAME:
 
@@ -1201,12 +1197,6 @@ func (protoParser *ProtoParser) filterWarpScript(framework FrameworkStatement) (
 	if framework.operator != FILTERBYLABELS {
 		value += strings.Join(paramStrings, " ")
 	}
-
-	/*
-		if framework.operator == FILTERBYLABELS {
-			value += " }"
-		}
-	*/
 
 	suffix += " ] FILTER"
 
