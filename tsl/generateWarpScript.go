@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -19,7 +21,7 @@ var toWarpScript = [...]string{
 	SHRINK:         "SHRINK",
 	TIMESCALE:      "TIMESCALE",
 	TIMECLIP:       "TIMECLIP",
-	TIMEMODULO:     "TIMEMODULO",
+	TIMEMODULO:     "TIMEMODULO FLATTEN",
 	TIMESPLIT:      "TIMESPLIT FLATTEN",
 	STORE:          "UPDATE",
 	RESETS:         "FALSE RESETS",
@@ -359,7 +361,7 @@ func (protoParser ProtoParser) getMeta(selectStatement SelectStatement, token st
 
 	for _, framework := range selectStatement.frameworks {
 		switch framework.operator {
-		case NAMES, SELECTORS, LABELS:
+		case NAMES, SELECTORS, LABELS, ATTRIBUTES:
 			return protoParser.getFind(selectStatement, token, framework)
 		}
 	}
@@ -380,6 +382,8 @@ func (protoParser ProtoParser) getFind(selectStatement SelectStatement, token st
 		op = "TOSELECTOR"
 	case LABELS:
 		op = "LABELS"
+	case ATTRIBUTES:
+		op = "ATTRIBUTES"
 	}
 
 	metric := selectStatement.metric
@@ -388,7 +392,7 @@ func (protoParser ProtoParser) getFind(selectStatement SelectStatement, token st
 	}
 	suffix := ""
 
-	if framework.operator == LABELS && len(framework.unNamedAttributes) > 0 {
+	if (framework.operator == LABELS || framework.operator == ATTRIBUTES) && len(framework.unNamedAttributes) > 0 {
 		suffix = "'" + framework.unNamedAttributes[0].lit + "' GET"
 	}
 
@@ -1081,7 +1085,9 @@ func (protoParser *ProtoParser) operators(framework FrameworkStatement) string {
 			if attribute.tokenType == STRING {
 				paramValue = "'" + attribute.lit + "' "
 			} else if attribute.tokenType == DURATIONVAL {
-				paramValue = protoParser.parseShift(attribute.lit) + " "
+				paramValue = protoParser.parseShift(attribute.lit)
+			} else if attribute.tokenType == NOW {
+				paramValue = "NOW "
 			} else {
 				paramValue = attribute.lit + " "
 			}
@@ -1090,6 +1096,11 @@ func (protoParser *ProtoParser) operators(framework FrameworkStatement) string {
 
 		value = strings.Join(paramStrings, " ")
 		value = value + " "
+	}
+
+	if framework.operator == SHRINK {
+		return "<% DROP " + value + operatorString + " %> LMAP"
+
 	}
 
 	return value + operatorString
@@ -1154,14 +1165,19 @@ func (protoParser *ProtoParser) filterWarpScript(framework FrameworkStatement) (
 
 	case FILTERBYLABELS:
 		filterType = "bylabels"
+
+		filtersField := make([]WhereField, len(paramStrings))
 		for index, label := range paramStrings {
 			whereItem, err := protoParser.getWhereField(label, framework.pos)
 			if err != nil {
 				return "", err
 			}
-			paramStrings[index] = "'" + whereItem.key + "' '" + whereItem.op.String() + whereItem.value + "'"
+			log.Warn(index)
+			filtersField[index] = *whereItem
 		}
-		value += "{ "
+
+		log.Warn(filtersField)
+		value += protoParser.getFetchLabels(filtersField)
 
 	case FILTERBYNAME:
 
@@ -1170,13 +1186,16 @@ func (protoParser *ProtoParser) filterWarpScript(framework FrameworkStatement) (
 			return "", protoParser.NewProtoError(message, framework.pos)
 		}
 		filterType = "byclass"
-		paramStrings[0] = "'" + paramStrings[0] + "'"
+
+		whereItem, err := protoParser.getWhereField(paramStrings[0], framework.pos)
+		if err != nil {
+			return "", err
+		}
+		paramStrings[0] = "'" + protoParser.getWhereValueString(*whereItem) + "'"
 	}
 
-	value += strings.Join(paramStrings, " ")
-
-	if framework.operator == FILTERBYLABELS {
-		value += " }"
+	if framework.operator != FILTERBYLABELS {
+		value += strings.Join(paramStrings, " ")
 	}
 
 	suffix += " ] FILTER"
@@ -1573,17 +1592,22 @@ func (protoParser *ProtoParser) getFetchLabels(labels []WhereField) string {
 	buffer.WriteString("{ ")
 
 	for _, label := range labels {
-		labelsValue := label.value
-		if label.op == RegexMatch {
-			labelsValue = "~" + labelsValue
-		} else if label.op == NotEqualMatch || label.op == RegexNoMatch {
-			labelsValue = "~(?!" + labelsValue + ").*"
-		}
-
+		labelsValue := protoParser.getWhereValueString(label)
 		newLabels := fmt.Sprintf("%q %q ", label.key, labelsValue)
 		buffer.WriteString(newLabels)
 	}
 
 	buffer.WriteString("}")
 	return buffer.String()
+}
+
+func (protoParser *ProtoParser) getWhereValueString(label WhereField) string {
+	labelsValue := label.value
+	if label.op == RegexMatch {
+		labelsValue = "~" + labelsValue
+	} else if label.op == NotEqualMatch || label.op == RegexNoMatch {
+		labelsValue = "~(?!" + labelsValue + ").*"
+	}
+
+	return labelsValue
 }

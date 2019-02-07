@@ -60,6 +60,15 @@ select("sys.cpu.nice").where("dc=lga", "web~.*")
 
 > You can chain as many where clauses as wanted in a TSL query, example: select(...).where(...).where(...) as long as you are defining the data to retrieve.
 
+### Retrieve only series meta-data
+
+TSL includes post-select statements to return only the series names, labels or selectors of the select results. The available methods are:
+
+* The **names** method return the unique names of a series set, example: _.names()_
+* The **labels** method return the unique labels maps of a series set. To retrieve a specific label values you can add a label key string as parameter to the **labels** function. It will then return the unique values for this specific label. Examples: _.labels()_, _.labels("host")_
+* The **attributes** method return the unique attributes maps of a series set. To retrieve a specific attribute values you can add an attribute key string as parameter to the **attributes** function. It will then return the unique values for this specific attribute. Examples: _.attributes()_, _.attributes("host")_
+* The **selectors** method return the unique selectors string of a series set, example: _.selectors()_
+
 ### From or Last
 
 The last methods to define the data to retrieve are **last** and **from**. They are used to set the time limits to retrieve the data.
@@ -159,6 +168,18 @@ To resume **last** valid parameters are listed below. A parameter can be optiona
 | timestamp | Integer, Double | <i class="fas fa-times"></i> | timestamp | Only on Prometheus |
 | shift | Duration value |<i class="fas fa-times"></i> | shift | |
 
+### Warp 10 attribute policy
+
+In the case you are using TSL on **Warp 10**, the **attributePolicy** method allow you to choose how to handle the attributes in TSL series set result. You can choose between **merging** the Attributes with the series Labels, between keeping them **splitted** from the labels or simply **remove** them. By default TSL kept the split mode. The **attributePolicy** valid parameter is one of **merge**, **split** or **remove**.
+
+```
+select("sys.cpu.nice").where("dc=lga", "web~.*")
+  .last(2m, shift=1h)
+  .attributePolicy(remove)
+```
+
+The **attributePolicy** method should be put right after a select statement, as a **where**, **from** or **last** method but before any further metrics operations.
+
 ### Sampling
 
 When collecting servers or application metrics, the data stored are often unsynchronised. To start processing our stored metrics, it's often mandatory to sample the data. Sampling the data corresponds to split metrics data points per time window. All values in this time window are send as parameter to a function that will provide one value as result.
@@ -177,7 +198,7 @@ The **sampleBy** method expects as second parameter (mandatory):
 The **sampleBy** method takes also two optionals parameters: 
 
 * A boolean to indicate whether we should keep a relative sampling (true) or use an absolute one (default, and params at false): absolute sampling means that data would be round up (ex: with a 5 minutes span series at time 12:03 it would be 12:05, 12:00, 11:55, when with a relative sampling times would be at 12:03, 11:58, 11:53).
-* A sampling policy can be **auto, none, interpolate, next** or **previous**. TSL expects the policy to be set as string (example "auto") or a list of strings, containing the policiy to apply in order. This list is restrained to values equals to **interpolate, next or previous**. Using **interpolate** policy will compute the interpolation of the intermediary values, **next** will fill missing values with the next values it found, and **previous** will fill missing values by the previous value of the series found. The **none** one will let empty missing values. When **auto** means that an interpolation is applied first to field intermediary missing values, previous to fill missing values before the first data-point and next to fill missing values after the last data-point. When no policy it's set it used **auto** by default.
+* A sampling policy can be **auto, none, interpolate, next** or **previous**. TSL expects the policy to be set as string (example "auto") or a list of strings, containing the policiy to apply in order. This list is restrained to values equals to **interpolate, next or previous**. Using **interpolate** policy will compute the interpolation of the intermediary values, **next** will fill missing values with the next values it found, and **previous** will fill missing values by the previous value of the series found. The **none** one will let empty missing values. When **auto** means that an interpolation is applied first to field intermediary missing values, previous to fill missing values before the first data-point and next to fill missing values after the last data-point. To fill missing value you can also use the method **fill** as policy. Fill expects a single parameter, the value to fill the series with. When no policy it's set it used **auto** by default.
 
 > The duration format is a number followed by one of **w** for week(s), **d** for day(s), **h** for hour(s), **m** for minute(s), **s** for second(s), **ms** for milli-second(s), **us** for micro-second(s), **ns** for nano-second(s) and **ps** for pico-second(s)
 
@@ -218,6 +239,16 @@ select("sys.cpu.nice")
 select("sys.cpu.nice")
   .from(1346846400000000,1346847000006000)
   .sampleBy(span=1m, aggregator="mean", fill=["interpolate", "next", "previous"], relative=false)
+
+// Using the fill value method policy to fill missing values by Zero
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(span=1m, aggregator="mean", fill=fill(0), relative=false)
+  
+// Using the fill value method policy to fill missing values by Zero
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(span=1m, aggregator="mean", fill(0), relative=false)
 ```
 
 To resume **sampleBy** valid parameters are listed below. A parameter can be optional or mandatory. When a prefix is indicated, it means that this parameter can be set using a prefix name.
@@ -231,7 +262,7 @@ To resume **sampleBy** valid parameters are listed below. A parameter can be opt
 | fill | List of string | <i class="fas fa-times"></i> | fill | Each values of the list can be one of **interpolate, next, previous** |
 | relative | Boolean | <i class="fas fa-times"></i> | relative | |
 
-### Group and GroupBy
+### Group, GroupBy and GroupWithout
 
 When building a metrics data flow, once we sampled the data, we may want to regroup similar metrics. This is what the **group** and **groupBy** methods are build to. The user defines the aggregation function and custom rules to applied to reduce to a single value all metrics values occuring at the same time. 
 
@@ -279,6 +310,26 @@ To resume **groupBy** valid parameters are listed below. A parameter can be opti
 | label | String | <i class="fas fa-check"></i> | None | a label key as first parameter |
 | labels | List of string | <i class="fas fa-check"></i> | None | a label key list as first parameter |
 | aggregator | Operator | <i class="fas fa-check"></i> | None | Operator value can be one of: **max, mean, min, sum, join, median, count, percentile, and** or **or** as second parameter |
+
+The **groupWithout** methods works the same way as the groupBy one exept it will compute the minimal equivalence classes and then remove the labels given as parameters to group the series on. **groupWithout** behavior is similar to the PromQL aggregation operators.
+
+Example:
+
+```
+// Valid parameters prefix
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(1m, "mean")
+  .groupWithout("dc", mean)
+
+// Valid parameters prefix
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(1m, "mean")
+  .groupWithout(["host","dc"],mean)
+```
+
+When using TSL on prometheus, you can also use the **groupLeft** and **groupRight** to match PromQL **group_left** and **group_right** operators.
 
 ### Metrics values operators
 
@@ -420,6 +471,11 @@ The following TSL methods can be used to apply time related operators on metrics
 * The **timestamp** operator used to replace each points per their **timestamp** (in UTC time), example: _.timestamp()._
 * The **keepLastValues** operator used to keep the last N values of the operator (from 0 to the current metrics size, by default return only the last metric value), example: _.keepLastValues()._, _.keepLastValues(10)._
 * The **keepFirstValues** operator used to keep the first N values of the operator (from 0 to the current metrics size, by default return only the first metric value), example: _.keepFirstValues()._, _.keepFirstValues(10)._
+* The **shrink** operator used to shrinks the number of values specified as parameter of each metrics of the set, example: _.shrink(5)._
+* The **timeclip** operator used to keep only values in a specific time interval. **timeclip** expects 2 parameters: the last tick of the interval to keep and the duration time to keep before (as number or as duration). You can also specified two ISO8601 string date to set the time interval to keep. With **timeclip**, using the **now** keyword will push NOW as a timestamp in the correct unit time of the platform. Example: _.timeclip(1535641320000000, 2m)_, _.timeclip(now, 200000)_, _.timeclip("2018-04-22T00:57:00-05:00","2018-04-22T01:00:00-05:00")_
+* The **timemodulo** operator used to split metrics per a time modulo given as parameter. This will add to each series a new label key (second parameter) and the value of original timestamp quotient. Use example: _.timemodulo(42,"quotient")._
+* The **timescale** operator used to multiply each series timestamp by the value set as the method parameter, example: _.timescale(42)._
+* The **timesplit** operator used to split timeseries based on **quiesce** periods. The first parameter is the time duration value of the quiesce period, it can be a duration value, a long or the keyword now. The second one in the minimal amount of points to keep a new series (to reduce noise when creating series), and the last one the new label key for each split series. example: _.timesplit(now, 42, 'test')._, _.timesplit(1h, 4, 'test')._, _.timesplit(20000000, 1, 'test')._
 
 For **keepLastValues** and **keepFirstValues** function, if the parameter specified is greater than the actual size of the metric, those functions will then return the complete metrics.
  
@@ -437,6 +493,14 @@ TSL introduces some methods to sort metrics by their samples values.
 * The **bottomNBy** operator used to get the lowest N series (sorted according to the result of a **global operator** in **ascending** order. The operator function can be one of: **last, first, max, mean, min, sum, median, count, percentile, and** or **or**). Use example: _.topNBy(2, max)._
 
 > The **sortBy**, **sortDescBy**, **topNBy** and **bottomNBy** operators are not available for **Prometheus**.
+
+### Metrics filtering
+
+TSL includes a few methods to filter the metrics result set: 
+
+* The **filterByLabels** method to keep only the metrics matching some labels rules defined as parameters. **filterByLabels** expects at least one label clause string, and optionally as many as needed. Use example: _.filterByLabels("label~42.*", "host=server-01")._
+* The **filterByName** method to keep only the metrics matching a name rule defined as parameters. **filterByName** expects a single string rule. Use example: _.filterByName("test")_, _.filterByName("~test")_
+* The **filterByLastValue** method to keep only the metrics matching a rule on their last value defined as parameters. **filterByLastValue** expects at least one string rule, and optionally as many as needed. Use example: _.filterByLastValue(">=42")_, _.filterByName("!='mystring'")_. The valid **filterByLastValue** parameters are **<=**, **<**, **!=**, **=**, **>=** and **>**.
 
 ### Metrics operators on metrics sets
 
@@ -581,6 +645,24 @@ addSave = add(mySelect.where(labelName).ln(),mySelect
 addSave.on("host").add(100)
 ```
 
+#### TSL Lists
+
+You can declare and use TSL lists in a variable:
+
+```
+labelsNames = ["host=web02", "dc~.*"]
+```
+
+On a TSL list you can apply:
+
+* The **add** method to add elements to the current list. Use example : _.add("test=42")_
+* The **remove** method to remove elements of the current list. Use example : _.remove("test=42")_
+
+For example to use it in a where statement:
+```
+select("sys.cpu.nice").where(labelsNames)
+```
+
 ### Connect
 
 In TSL, we can directly use the Connect method to update the set the backend on which queries are processed. For a warp10 backend it's:
@@ -604,8 +686,8 @@ connect("prometheus","http://localhost:9090","user","pwd")
 
 The update metrics meta-data in TSL you can use one of the following function:
 
-* The **addNamePrefix** to add a **prefix** to each metrics of a set. Use example: _.addNamePrefix("prefix")._
-* The **addNameSuffix** to add a **suffix** to each metrics of a set. Use example: _.addNameSuffix("suffix")._
+* The **addPrefix** to add a **prefix** to each metrics name of a set. Use example: _.addPrefix("prefix")._
+* The **addSuffix** to add a **suffix** to each metrics name of a set. Use example: _.addSuffix("suffix")._
 * The **rename** to rename each metrics of a set. Use example: _.rename("newName")._
 * The **renameBy** to rename each metrics per one of it's labels. Use example: _.renameBy("host")._
 * The **removeLabels** to remove one or several labels of a metrics set. Use example: _.removeLabels("host", "dc")._

@@ -568,7 +568,7 @@ loop:
 		// Parse valid post select methods that can be one time method: from or last and an undefinite number of where
 		switch tok {
 
-		case NAMES, LABELS, SELECTORS:
+		case NAMES, LABELS, SELECTORS, ATTRIBUTES:
 
 			if internalCall || instruction.isGlobalOperator || instruction.selectStatement.timeSet {
 				errMessage := fmt.Sprintf("Function %q, expects to stand on a single select statement", tok.String())
@@ -1159,7 +1159,7 @@ func (p *Parser) parseSelectMeta(tok Token, pos Pos, lit string, instruction *In
 
 	operatorCount := 0
 
-	if tok == LABELS {
+	if tok == LABELS || tok == ATTRIBUTES {
 		operatorCount = 1
 	}
 
@@ -2333,17 +2333,17 @@ func (p *Parser) parseOperators(tok Token, pos Pos, lit string, instruction *Ins
 
 	switch tok {
 	case TIMECLIP:
-		paramsField[0] = []InternalField{{tokenType: INTEGER}, {tokenType: NUMBER}}
-		paramsField[1] = []InternalField{{tokenType: INTEGER}, {tokenType: NUMBER}}
+		paramsField[0] = []InternalField{{tokenType: INTEGER}, {tokenType: NUMBER}, {tokenType: NOW}, {tokenType: STRING}}
+		paramsField[1] = []InternalField{{tokenType: INTEGER}, {tokenType: NUMBER}, {tokenType: DURATIONVAL}, {tokenType: STRING}}
 		maxFieldLength = 2
 		minFieldLength = 2
 	case TIMEMODULO:
-		paramsField[0] = []InternalField{{tokenType: INTEGER}}
+		paramsField[0] = []InternalField{{tokenType: INTEGER}, {tokenType: NOW}}
 		paramsField[1] = []InternalField{{tokenType: STRING}}
 		maxFieldLength = 2
 		minFieldLength = 2
 	case TIMESPLIT:
-		paramsField[0] = []InternalField{{tokenType: INTEGER}, {tokenType: DURATIONVAL}}
+		paramsField[0] = []InternalField{{tokenType: INTEGER}, {tokenType: DURATIONVAL}, {tokenType: NOW}}
 		paramsField[1] = []InternalField{{tokenType: INTEGER}}
 		paramsField[2] = []InternalField{{tokenType: STRING}}
 		maxFieldLength = 3
@@ -2804,7 +2804,14 @@ func (p *Parser) ParseFields(function string, internalFields map[int][]InternalF
 
 			}
 
-			if hasPrefix {
+			isEq, _, _ := p.ScanIgnoreWhitespace()
+
+			p.Unscan()
+
+			isPrefix := tok == FILL && isEq == EQ
+
+			if hasPrefix && isPrefix {
+
 				// remove the allowed prefix
 				tok, pos, lit = p.ScanIgnoreWhitespace()
 

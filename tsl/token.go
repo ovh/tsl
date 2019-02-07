@@ -57,6 +57,7 @@ const (
 	ADDSERIES
 	ANDL
 	ATTRIBUTEPOLICY
+	ATTRIBUTES
 	BOTTOMN
 	BOTTOMNBY
 	CEIL
@@ -110,6 +111,7 @@ const (
 	NAMES
 	NEGMASK
 	NOTEQUAL
+	NOW
 	ON
 	ORL
 	PERCENTILE
@@ -193,6 +195,7 @@ var tokens = [...]string{
 	ADDSERIES:         "add",
 	ANDL:              "and",
 	ATTRIBUTEPOLICY:   "attributePolicy",
+	ATTRIBUTES:        "attributes",
 	BOTTOMN:           "bottomN",
 	BOTTOMNBY:         "bottomNBy",
 	CEIL:              "ceil",
@@ -245,6 +248,7 @@ var tokens = [...]string{
 	MULSERIES:         "mul",
 	NEGMASK:           "negmask",
 	NOTEQUAL:          "notEqual",
+	NOW:               "now",
 	NAMES:             "names",
 	ON:                "on",
 	ORL:               "or",
