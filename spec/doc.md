@@ -253,7 +253,7 @@ To resume **sampleBy** valid parameters are listed below. A parameter can be opt
 | fill | List of string | <i class="fas fa-times"></i> | fill | Each values of the list can be one of **interpolate, next, previous** |
 | relative | Boolean | <i class="fas fa-times"></i> | relative | |
 
-### Group and GroupBy
+### Group, GroupBy and GroupWithout
 
 When building a metrics data flow, once we sampled the data, we may want to regroup similar metrics. This is what the **group** and **groupBy** methods are build to. The user defines the aggregation function and custom rules to applied to reduce to a single value all metrics values occuring at the same time. 
 
@@ -301,6 +301,26 @@ To resume **groupBy** valid parameters are listed below. A parameter can be opti
 | label | String | <i class="fas fa-check"></i> | None | a label key as first parameter |
 | labels | List of string | <i class="fas fa-check"></i> | None | a label key list as first parameter |
 | aggregator | Operator | <i class="fas fa-check"></i> | None | Operator value can be one of: **max, mean, min, sum, join, median, count, percentile, and** or **or** as second parameter |
+
+The **groupWithout** methods works the same way as the groupBy one exept it will compute the minimal equivalence classes and then remove the labels given as parameters to group the series on. **groupWithout** behavior is similar to the PromQL aggregation operators.
+
+Example:
+
+```
+// Valid parameters prefix
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(1m, "mean")
+  .groupWithout("dc", mean)
+
+// Valid parameters prefix
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(1m, "mean")
+  .groupWithout(["host","dc"],mean)
+```
+
+When using TSL on prometheus, you can also use the **groupLeft** and **groupRight** to match PromQL **group_left** and **group_right** operators.
 
 ### Metrics values operators
 
