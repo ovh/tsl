@@ -2333,17 +2333,17 @@ func (p *Parser) parseOperators(tok Token, pos Pos, lit string, instruction *Ins
 
 	switch tok {
 	case TIMECLIP:
-		paramsField[0] = []InternalField{{tokenType: INTEGER}, {tokenType: NUMBER}}
-		paramsField[1] = []InternalField{{tokenType: INTEGER}, {tokenType: NUMBER}}
+		paramsField[0] = []InternalField{{tokenType: INTEGER}, {tokenType: NUMBER}, {tokenType: NOW}, {tokenType: STRING}}
+		paramsField[1] = []InternalField{{tokenType: INTEGER}, {tokenType: NUMBER}, {tokenType: DURATIONVAL}, {tokenType: STRING}}
 		maxFieldLength = 2
 		minFieldLength = 2
 	case TIMEMODULO:
-		paramsField[0] = []InternalField{{tokenType: INTEGER}}
+		paramsField[0] = []InternalField{{tokenType: INTEGER}, {tokenType: NOW}}
 		paramsField[1] = []InternalField{{tokenType: STRING}}
 		maxFieldLength = 2
 		minFieldLength = 2
 	case TIMESPLIT:
-		paramsField[0] = []InternalField{{tokenType: INTEGER}, {tokenType: DURATIONVAL}}
+		paramsField[0] = []InternalField{{tokenType: INTEGER}, {tokenType: DURATIONVAL}, {tokenType: NOW}}
 		paramsField[1] = []InternalField{{tokenType: INTEGER}}
 		paramsField[2] = []InternalField{{tokenType: STRING}}
 		maxFieldLength = 3

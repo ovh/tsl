@@ -21,7 +21,7 @@ var toWarpScript = [...]string{
 	SHRINK:         "SHRINK",
 	TIMESCALE:      "TIMESCALE",
 	TIMECLIP:       "TIMECLIP",
-	TIMEMODULO:     "TIMEMODULO",
+	TIMEMODULO:     "TIMEMODULO FLATTEN",
 	TIMESPLIT:      "TIMESPLIT FLATTEN",
 	STORE:          "UPDATE",
 	RESETS:         "FALSE RESETS",
@@ -1085,7 +1085,9 @@ func (protoParser *ProtoParser) operators(framework FrameworkStatement) string {
 			if attribute.tokenType == STRING {
 				paramValue = "'" + attribute.lit + "' "
 			} else if attribute.tokenType == DURATIONVAL {
-				paramValue = protoParser.parseShift(attribute.lit) + " "
+				paramValue = protoParser.parseShift(attribute.lit)
+			} else if attribute.tokenType == NOW {
+				paramValue = "NOW "
 			} else {
 				paramValue = attribute.lit + " "
 			}
@@ -1094,6 +1096,11 @@ func (protoParser *ProtoParser) operators(framework FrameworkStatement) string {
 
 		value = strings.Join(paramStrings, " ")
 		value = value + " "
+	}
+
+	if framework.operator == SHRINK {
+		return "<% DROP " + value + operatorString + " %> LMAP"
+
 	}
 
 	return value + operatorString

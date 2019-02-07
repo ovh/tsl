@@ -111,6 +111,7 @@ const (
 	NAMES
 	NEGMASK
 	NOTEQUAL
+	NOW
 	ON
 	ORL
 	PERCENTILE
@@ -247,6 +248,7 @@ var tokens = [...]string{
 	MULSERIES:         "mul",
 	NEGMASK:           "negmask",
 	NOTEQUAL:          "notEqual",
+	NOW:               "now",
 	NAMES:             "names",
 	ON:                "on",
 	ORL:               "or",
