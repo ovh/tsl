@@ -640,6 +640,24 @@ addSave = add(mySelect.where(labelName).ln(),mySelect
 addSave.on("host").add(100)
 ```
 
+#### TSL Lists
+
+You can declare and use TSL lists in a variable:
+
+```
+labelsNames = ["host=web02", "dc~.*"]
+```
+
+On a TSL list you can apply:
+
+* The **add** method to add elements to the current list. Use example : _.add("test=42")_
+* The **remove** method to remove elements of the current list. Use example : _.remove("test=42")_
+
+For example to use it in a where statement:
+```
+select("sys.cpu.nice").where(labelsNames)
+```
+
 ### Connect
 
 In TSL, we can directly use the Connect method to update the set the backend on which queries are processed. For a warp10 backend it's:
