@@ -533,6 +533,9 @@ _For example: we can add the values of a first series with a second one. Value w
 * The **greaterOrEqual** operator between metrics sets, example: _greaterOrEqual(select(...), select(...), ...)_
 * The **lessThan** operator between metrics sets, example: _lessThan(select(...), select(...), ...)_
 * The **lessOrEqual** operator between metrics sets, example: _lessOrEqual(select(...), select(...), ...)_
+* The **mask** operator to use a [Warp 10 mask](https://www.warp10.io/doc/op.mask), example: _mask(select(...).toboolean(), select(...))_
+* The **negmask** operator to use a [Warp 10 negmask](https://www.warp10.io/doc/op.negmask), example: _negmask(select(...).toboolean(), select(...))_
+
 
 Example:
 
