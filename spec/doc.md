@@ -460,6 +460,14 @@ TSL introduces some methods to sort metrics by their samples values.
 
 > The **sortBy**, **sortDescBy**, **topNBy** and **bottomNBy** operators are not available for **Prometheus**.
 
+### Metrics filtering
+
+TSL includes a few methods to filter the metrics result set: 
+
+* The **filterByLabels** method to keep only the metrics matching some labels rules defined as parameters. **filterByLabels** expects at least one label clause string, and optionally as many as needed. Use example: _.filterByLabels("label~42.*", "host=server-01")._
+* The **filterByName** method to keep only the metrics matching a name rule defined as parameters. **filterByName** expects a single string rule. Use example: _.filterByName("test")_, _.filterByName("~test")_
+* The **filterByLastValue** method to keep only the metrics matching a rule on their last value defined as parameters. **filterByLastValue** expects at least one string rule, and optionally as many as needed. Use example: _.filterByLastValue(">=42")_, _.filterByName("!='mystring'")_. The valid **filterByLastValue** parameters are **<=**, **<**, **!=**, **=**, **>=** and **>**.
+
 ### Metrics operators on metrics sets
 
 When we load several set of data, we may want to apply operation on metrics sets. TSL allow us to apply operators on metrics. 
