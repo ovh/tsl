@@ -249,6 +249,14 @@ func (protoParser *ProtoParser) getFrameworksOp(selectStatement SelectStatement,
 			buffer.WriteString(protoParser.getMapper(framework, sampleSpan))
 			buffer.WriteString("\n")
 
+		case QUANTIZE:
+			quantize, err := protoParser.quantize(framework, prefix)
+			if err != nil {
+				return "", err
+			}
+			buffer.WriteString(quantize)
+			buffer.WriteString("\n")
+
 		case SHIFT, RESETS, TIMESCALE, TIMECLIP, TIMEMODULO, TIMESPLIT, SHRINK:
 			buffer.WriteString(protoParser.operators(framework))
 			buffer.WriteString("\n")
@@ -912,6 +920,144 @@ func (protoParser *ProtoParser) getMapper(framework FrameworkStatement, sampleSp
 	return fmt.Sprintf("[ SWAP " + value + mapper + " " + pre + " " + post + " " + occurrences + " ] MAP ")
 }
 
+// quantize generate WarpScript line for a quantize statement
+func (protoParser *ProtoParser) quantize(framework FrameworkStatement, prefix string) (string, error) {
+	var buffer bytes.Buffer
+	hasChunk := false
+
+	for key, attribute := range framework.unNamedAttributes {
+		paramValue := ""
+		if attribute.tokenType == STRING {
+			paramValue = "'" + attribute.lit + "' "
+		} else if attribute.tokenType == DURATIONVAL {
+			paramValue = protoParser.parseShift(attribute.lit) + " "
+		} else if attribute.tokenType == INTERNALLIST {
+
+			paramValue = "[ "
+
+			if len(attribute.fieldList) == 0 {
+				errMessage := fmt.Sprintf("Error in function quantize, expects at least a value in step list")
+				return "", protoParser.NewProtoError(errMessage, framework.pos)
+			}
+
+			for _, internalField := range attribute.fieldList {
+
+				if internalField.tokenType != NUMBER && internalField.tokenType != INTEGER {
+					errMessage := fmt.Sprintf("Error in function quantize, expects only integer or number values in step list")
+					return "", protoParser.NewProtoError(errMessage, framework.pos)
+				}
+				paramValue += internalField.lit + " "
+			}
+			paramValue += "] "
+		} else {
+			paramValue = attribute.lit + " "
+		}
+		buffer.WriteString(paramValue)
+
+		if key == 0 {
+			buffer.WriteString(prefix + "'labelKey' STORE\n")
+		} else if key == 1 {
+			buffer.WriteString(prefix + "'step' STORE\n")
+		} else if key == 2 {
+			buffer.WriteString(prefix + "'duration' STORE\n")
+		}
+	}
+	buffer.WriteString("\n")
+
+	if len(framework.unNamedAttributes) > 2 {
+		hasChunk = true
+	}
+
+	internalprefix := prefix + ""
+	if hasChunk {
+		buffer.WriteString(internalprefix + "0 $duration 0 0 '.chunkid' false CHUNK\n")
+		buffer.WriteString(internalprefix + "<%\n")
+		internalprefix += "    "
+		buffer.WriteString(internalprefix + "DROP \n")
+	}
+
+	buffer.WriteString(internalprefix + `
+	[
+    SWAP
+    <%
+        DUP 'series' STORE
+        
+        <% $step TYPEOF 'LIST' == %> 
+        <% $step %>
+        <%
+        [ $series mapper.min MAXLONG 0 -1 ] MAP 0 GET VALUES 0 GET 'min' STORE
+        [ $series mapper.max MAXLONG 0 -1 ] MAP 0 GET VALUES 0 GET 'max' STORE
+        
+        $min $step / ROUND $step *  'incrementalStep' STORE
+        [ 
+            $incrementalStep
+            $incrementalStep $step + DUP 'incrementalStep' STORE
+            <% $incrementalStep $max < %>
+            <%
+                $incrementalStep $step + 'incrementalStep' STORE
+                $incrementalStep
+            %>
+            WHILE
+        ]
+        %>
+        IFTE
+        DUP 
+        DUP SIZE 'length' STORE
+        DUP $length 1 - GET 'last' STORE
+        <%
+            DROP  
+            TOSTRING '<' SWAP +
+        %>
+        LMAP
+        '>' $last TOSTRING + +
+        QUANTIZE
+        VALUEHISTOGRAM
+        [
+        SWAP
+        <%
+            'value' STORE
+            'labelValue' STORE
+			$series CLONEEMPTY 
+	`)
+	if hasChunk {
+		buffer.WriteString(`
+			DUP LABELS '.chunkid' GET TOLONG 
+			`)
+	} else {
+		buffer.WriteString(`
+			$series LASTTICK
+			`)
+	}
+
+	buffer.WriteString(internalprefix + `
+            NaN NaN NaN
+            $value
+            ADDVALUE
+            {
+                '.chunkid' ''
+                $labelKey $labelValue
+            }
+            RELABEL
+        %>
+        FOREACH
+        ]
+     %>
+     FOREACH
+     ]
+     FLATTEN
+	[ SWAP [ $labelKey ] reducer.sum ] REDUCE FLATTEN
+	`)
+
+	if hasChunk {
+		buffer.WriteString(`
+		%>
+		LMAP
+		FLATTEN
+		`)
+	}
+	return buffer.String(), nil
+}
+
 // operators generate WarpScript line for an individual statement
 func (protoParser *ProtoParser) operators(framework FrameworkStatement) string {
 	operatorString := toWarpScript[framework.operator]
@@ -922,9 +1068,9 @@ func (protoParser *ProtoParser) operators(framework FrameworkStatement) string {
 		if attribute.tokenType == STRING {
 			value = "'" + attribute.lit + "' "
 		} else if attribute.tokenType == DURATIONVAL {
-			value = protoParser.parseShift(attribute.lit)
+			value = protoParser.parseShift(attribute.lit) + " "
 		} else {
-			value = attribute.lit
+			value = attribute.lit + " "
 		}
 		value = value + " "
 	} else if len(framework.unNamedAttributes) > 0 {
@@ -935,9 +1081,9 @@ func (protoParser *ProtoParser) operators(framework FrameworkStatement) string {
 			if attribute.tokenType == STRING {
 				paramValue = "'" + attribute.lit + "' "
 			} else if attribute.tokenType == DURATIONVAL {
-				paramValue = protoParser.parseShift(attribute.lit)
+				paramValue = protoParser.parseShift(attribute.lit) + " "
 			} else {
-				paramValue = attribute.lit
+				paramValue = attribute.lit + " "
 			}
 			paramStrings[key] = paramValue
 		}
