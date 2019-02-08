@@ -645,6 +645,17 @@ addSave = add(mySelect.where(labelName).ln(),mySelect
 addSave.on("host").add(100)
 ```
 
+#### Use String templates with variables
+
+You can define a variable and re-use it directly inside a TSL string using a template as shown in the example below:
+
+```
+host = "my.host"
+
+select("my.series")
+   .where(["host=${host}"])
+```
+
 #### TSL Lists
 
 You can declare and use TSL lists in a variable:
