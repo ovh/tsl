@@ -746,7 +746,7 @@ loop:
 			if err != nil {
 				return nil, err
 			}
-		case ABS, CEIL, CUMULATIVESUM, DAY, FLOOR, HOUR, LN, LOG2, LOG10, MINUTE, MONTH, ROUND, RESETS, SQRT, TIMESTAMP, WEEKDAY, YEAR:
+		case ABS, CEIL, CUMULATIVESUM, DAY, FLOOR, HOUR, LN, LOG2, LOG10, MINUTE, MONTH, ROUND, RESETS, SQRT, TIMESTAMP, WEEKDAY, YEAR, TOBOOLEAN, TODOUBLE, TOLONG, TOSTRING:
 			instruction, err = p.parseNoOperator(tok, pos, lit, instruction)
 
 			if err != nil {

@@ -151,8 +151,12 @@ const (
 	TIMESTAMP
 	TIMESCALE
 	TIMESPLIT
+	TOBOOLEAN
+	TODOUBLE
+	TOLONG
 	TOPN
 	TOPNBY
+	TOSTRING
 	WARP
 	WEEKDAY
 	WHERE
@@ -284,8 +288,12 @@ var tokens = [...]string{
 	STORE:             "store",
 	SUBSERIES:         "sub",
 	SUM:               "sum",
+	TOBOOLEAN:         "toboolean",
+	TODOUBLE:          "todouble",
+	TOLONG:            "tolong",
 	TOPN:              "topN",
 	TOPNBY:            "topNBy",
+	TOSTRING:          "tostring",
 	TIMECLIP:          "timeclip",
 	TIMEMODULO:        "timemodulo",
 	TIMESTAMP:         "timestamp",
