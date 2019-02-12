@@ -2908,6 +2908,13 @@ func (p *Parser) ParseFields(function string, internalFields map[int][]InternalF
 				break
 			} else if tok == field.tokenType {
 
+				if tok == STRING {
+					var err error
+					lit, err = p.parseTemplateString(tok, lit, pos, function)
+					if err != nil {
+						return nil, err
+					}
+				}
 				field.lit = lit
 				findType = true
 
@@ -2950,6 +2957,53 @@ func (p *Parser) ParseFields(function string, internalFields map[int][]InternalF
 	return res, nil
 }
 
+// parseTemplateString evaluate a string lit to parse template string
+func (p *Parser) parseTemplateString(tok Token, lit string, pos Pos, function string) (string, error) {
+
+	if !strings.Contains(lit, "${") && !strings.Contains(lit, "}") {
+		return lit, nil
+	}
+
+	toEvaluateArray := strings.Split(lit, "${")
+
+	resultString := lit
+
+	for index, evaluationString := range toEvaluateArray {
+		if index == 0 || !strings.Contains(evaluationString, "}") {
+			continue
+		}
+
+		toEvaluateArray = strings.Split(evaluationString, "}")
+
+		toEvaluate := toEvaluateArray[0]
+
+		variable, exists := p.variables[toEvaluate]
+		if !exists {
+			errMessage := fmt.Sprintf("Error when parsing template %q in %q function, %q variable isn't declared", lit, function, toEvaluate)
+			return "", p.NewTslError(errMessage, pos)
+		}
+
+		if variable.tokenType == INTERNALLIST {
+
+			stringList := "["
+			prefix := ""
+			for _, field := range variable.fieldList {
+				fieldLit, err := p.parseTemplateString(field.tokenType, field.lit, pos, function)
+				if err != nil {
+					return "", err
+				}
+				stringList += prefix + fieldLit
+				prefix = ", "
+			}
+			stringList += "]"
+
+			resultString = strings.Replace(lit, "${"+toEvaluate+"}", stringList, 1)
+		}
+		resultString = strings.Replace(resultString, "${"+toEvaluate+"}", variable.lit, 1)
+	}
+	return resultString, nil
+}
+
 // ParseInternalFieldList Parse an internal list split per COMMA
 func (p *Parser) ParseInternalFieldList(function string, field InternalField) (*InternalField, error) {
 	field.fieldList = make([]InternalField, 0)
@@ -2963,6 +3017,14 @@ func (p *Parser) ParseInternalFieldList(function string, field InternalField) (*
 		// Stop directly if no fields are set
 		if tok == RBRACKET {
 			break
+		}
+
+		if tok == STRING {
+			var err error
+			lit, err = p.parseTemplateString(tok, lit, pos, function)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		field.fieldList = append(field.fieldList, InternalField{tokenType: tok, lit: lit})
