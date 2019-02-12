@@ -2808,7 +2808,7 @@ func (p *Parser) ParseFields(function string, internalFields map[int][]InternalF
 
 			p.Unscan()
 
-			isPrefix := tok == FILL && isEq == EQ
+			isPrefix := hasPrefix && isEq == EQ
 
 			if hasPrefix && isPrefix {
 
