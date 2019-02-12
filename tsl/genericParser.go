@@ -2890,7 +2890,7 @@ func (p *Parser) ParseFields(function string, internalFields map[int][]InternalF
 				tok, pos, lit = p.ScanIgnoreWhitespace()
 				if tok == STRING {
 					field.lit = "'" + lit + "'"
-				} else if tok == NUMBER || tok == INTEGER {
+				} else if tok == NUMBER || tok == INTEGER || tok == NEGNUMBER || tok == NEGINTEGER {
 					field.lit = lit
 				} else if tok == TRUE || tok == FALSE {
 					field.lit = tok.String()
