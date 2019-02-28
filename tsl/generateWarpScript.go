@@ -1009,8 +1009,16 @@ func (protoParser *ProtoParser) quantize(framework FrameworkStatement, prefix st
         DUP SIZE 'length' STORE
         DUP $length 1 - GET 'last' STORE
         <%
-            DROP  
-            TOSTRING '<' SWAP +
+            SWAP 'current' STORE
+            <% 1 >= %>
+            <%
+                $previous TOSTRING '<' + 'v<=' + $current TOSTRING +
+            %>
+            <%
+                '<=' $current TOSTRING +
+            %>
+            IFTE
+            $current 'previous' STORE
         %>
         LMAP
         '>' $last TOSTRING + +
