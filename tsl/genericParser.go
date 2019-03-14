@@ -12,7 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var reZeroOnly = regexp.MustCompile("^\\s*0+\\s*$")
+var reZeroOnly = regexp.MustCompile(`^\s*0+\s*$`)
 
 //
 // Define TSL parser utils methods
@@ -21,7 +21,6 @@ var reZeroOnly = regexp.MustCompile("^\\s*0+\\s*$")
 // Parser represents a TSL parser
 type Parser struct {
 	s             *bufScanner
-	params        map[string]interface{}
 	variables     map[string]*Variable
 	lineStart     int
 	defaultURI    string
@@ -227,11 +226,11 @@ loop:
 		case CONNECT:
 
 			if internCall {
-				return nil, nil, fmt.Errorf("Function %q isn't allowed in an operator at %d, char %d", CONNECT.String(), pos.Line+1, pos.Char+1)
+				return nil, nil, fmt.Errorf("function %q isn't allowed in an operator at %d, char %d", CONNECT.String(), pos.Line+1, pos.Char+1)
 			}
 
 			if loadVariable {
-				return nil, nil, fmt.Errorf("Function %q isn't allowed when declaring a variable at %d, char %d", CONNECT.String(), pos.Line+1, pos.Char+1)
+				return nil, nil, fmt.Errorf("function %q isn't allowed when declaring a variable at %d, char %d", CONNECT.String(), pos.Line+1, pos.Char+1)
 			}
 			// Parse connect attributes
 			instruction, err = p.parseConnect(tok, pos, lit, instruction)
@@ -290,11 +289,11 @@ loop:
 			}
 
 			if internCall {
-				return nil, nil, fmt.Errorf("Cannot declared a variable inside an operator at line %d, char %d", pos.Line+1, pos.Char+1)
+				return nil, nil, fmt.Errorf("cannot declared a variable inside an operator at line %d, char %d", pos.Line+1, pos.Char+1)
 			}
 
 			if loadVariable {
-				return nil, nil, fmt.Errorf("A variable cannot be declared inside a variable at line %d, char %d", pos.Line+1, pos.Char+1)
+				return nil, nil, fmt.Errorf("a variable cannot be declared inside a variable at line %d, char %d", pos.Line+1, pos.Char+1)
 			}
 
 			nexTok, nextPos, nextLit := p.ScanIgnoreWhitespace()
@@ -327,7 +326,7 @@ loop:
 		// Send an error for all other case
 		default:
 			log.Debug(tok, pos, lit)
-			return nil, nil, fmt.Errorf("Unexpected reserved keyword to start instruction at line %d, char %d", pos.Line+1, pos.Char+1)
+			return nil, nil, fmt.Errorf("unexpected reserved keyword to start instruction at line %d, char %d", pos.Line+1, pos.Char+1)
 		}
 	}
 	return instruction, newConnectStatement, nil
@@ -1859,20 +1858,6 @@ func (p *Parser) parseSampleBy(tok Token, pos Pos, lit string, instruction *Inst
 
 	instruction.selectStatement.frameworks = append(instruction.selectStatement.frameworks, *sampler)
 	return instruction, nil
-}
-
-// Validate SampleBy field aggregator
-func validateSampleByAggregator(types []InternalField, lit string) bool {
-
-	for _, validType := range types {
-		if validType.tokenType.String() == lit {
-			if validType.tokenType != STRING {
-				return true
-			}
-		}
-	}
-
-	return false
 }
 
 // GroupBy TSL method parser

@@ -15,7 +15,7 @@ const (
 	WS
 	COMMENT
 
-	literalBeg
+	// literalBeg
 	// IDENT and the following are TSL literal tokens.
 	IDENT                  // main
 	BOUNDPARAM             // $param
@@ -36,7 +36,7 @@ const (
 	DIV                    //
 	GTSLIST                // Internal GTS list type
 	MULTIPLESERIESOPERATOR // Internal GTS list type
-	literalEnd
+	//literalEnd
 
 	LPAREN       // (
 	RPAREN       // )

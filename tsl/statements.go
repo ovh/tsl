@@ -29,7 +29,6 @@ type Instruction struct {
 	isMeta           bool
 	hasSelect        bool
 	isGlobalOperator bool
-	pos              Pos
 }
 
 // Variable represents a TSL variable
@@ -70,11 +69,10 @@ type CreateStatement struct {
 
 // CreateSeries represents a new series data struct
 type CreateSeries struct {
-	metric    string
-	selectAll bool
-	where     []WhereField
-	values    []DataPoint
-	end       *InternalField
+	metric string
+	where  []WhereField
+	values []DataPoint
+	end    *InternalField
 }
 
 // DataPoint represents a new series data internal points

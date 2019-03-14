@@ -21,8 +21,8 @@ all: dep format lint release
 .PHONY: init
 init:
 	curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-	go get -u github.com/alecthomas/gometalinter
-	gometalinter --install --update
+	go get -u github.com/golangci/golangci-lint/cmd/golangci-lint
+	golangci-lint --install --update
 
 .PHONY: dep
 dep:
@@ -35,13 +35,13 @@ clean:
 
 .PHONY: lint
 lint:
-	@command -v gometalinter >/dev/null 2>&1 || { echo >&2 "gometalinter is required but not available please follow instructions from https://github.com/alecthomas/gometalinter"; exit 1; }
-	gometalinter --deadline=180s --disable-all --vendor --enable=gofmt $(LINT_PATHS)
-	gometalinter --deadline=180s --disable-all --vendor --enable=vet $(LINT_PATHS)
-	gometalinter --deadline=180s --disable-all --vendor --enable=golint $(LINT_PATHS)
-	gometalinter --deadline=180s --disable-all --vendor --enable=ineffassign $(LINT_PATHS)
-	gometalinter --deadline=180s --disable-all --vendor --enable=misspell $(LINT_PATHS)
-	gometalinter --deadline=180s --disable-all --vendor --enable=staticcheck $(LINT_PATHS)
+	@command -v golangci-lint >/dev/null 2>&1 || { echo >&2 "golangci-lint is required but not available please follow instructions from https://github.com/golangci/golangci-lint"; exit 1; }
+	golangci-lint run --deadline=180s --disable-all --enable=gofmt $(LINT_PATHS)
+	golangci-lint run --deadline=180s --disable-all --enable=vet $(LINT_PATHS)
+	golangci-lint run --deadline=180s --disable-all --enable=golint $(LINT_PATHS)
+	golangci-lint run --deadline=180s --disable-all --enable=ineffassign $(LINT_PATHS)
+	golangci-lint run --deadline=180s --disable-all --enable=misspell $(LINT_PATHS)
+	golangci-lint run --deadline=180s --disable-all --enable=staticcheck $(LINT_PATHS)
 
 .PHONY: format
 format:
