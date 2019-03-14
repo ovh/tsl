@@ -1591,7 +1591,7 @@ func getUnit(duration string, unit string) string {
 
 // Generate labels string from a list of whereField
 func (protoParser *ProtoParser) getFetchLabels(labels []WhereField) string {
-	if 0 == len(labels) {
+	if len(labels) == 0 {
 		return "{}"
 	}
 

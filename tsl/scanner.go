@@ -364,9 +364,6 @@ func isDigit(ch rune) bool { return (ch >= '0' && ch <= '9') }
 // isIdentChar returns true if the rune can be used in an unquoted identifier.
 func isIdentChar(ch rune) bool { return isLetter(ch) || isDigit(ch) || ch == '_' }
 
-// isIdentFirstChar returns true if the rune can be used as the first char in an unquoted identifer.
-func isIdentFirstChar(ch rune) bool { return isLetter(ch) || ch == '_' }
-
 // bufScanner represents a wrapper for scanner to add a buffer.
 // It provides a fixed-length circular buffer that can be unread.
 type bufScanner struct {

@@ -71,7 +71,7 @@ func (tsl Tsl) Query(ctx echo.Context) error {
 		lineStart, err = strconv.Atoi(lineHeader)
 		if err != nil {
 			tsl.WarnCounter.Inc()
-			return ctx.JSON(http.StatusBadRequest, NewError(errors.New("Unvalid header "+lineStartHeader+", expects an integer Number")))
+			return ctx.JSON(http.StatusBadRequest, NewError(errors.New("unvalid header "+lineStartHeader+", expects an integer number")))
 		}
 	}
 
@@ -296,7 +296,7 @@ func execProm(req *Ql, ctx echo.Context, prom string) (string, error) {
 	if res.StatusCode != http.StatusOK {
 		//return "",
 		var message PromError
-		json.Unmarshal([]byte(buf.String()), &message)
+		json.Unmarshal(buf.Bytes(), &message)
 		return buf.String(), errors.New("Fail to execute Prom request: " + message.Error)
 	}
 
