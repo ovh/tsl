@@ -735,12 +735,14 @@ The **series** method is used to create a Time Series, only in Warp 10 for now, 
 
 The **setValues** takes n parameter, the first one (optional) is the base Timestamp of the values (by default zero). Then the other are a two elements array composed of a timestamp (that would be add to the base one) and the value to set. Use example: _.setValues([0, 1], [100, 2])._
 
-At the end of the create statement, all other Time Series method can be apply on.
+The **setLabels** takes a single parameter: a labels string list where the key and values are split per the equals symbol.
+
+At the end of the create statement, all other Time Series set methods can be apply on.
 
 A more complex but valid tsl statement to create 2 Time Series would be:
 
 ```tsl
-create(series("test").setLabels(["l0=42","l1=42"]).setValues("now", [-5m, 2], [0, 1]).setValues("now",[2m, 3]),series("test2").setLabels(["l0=42","l1=42"]).setValues("now", [-5m, 2], [0, 1]))
+create(series("test").setLabels(["l0=42","l1=42"]).setValues("now", [-5m, 2], [0, 1]).setValues("now",[2m, 3]),series("test2").setLabels(["l0=42","l1=42"]).setValues(now, [-5m, 2], [0, 1]))
 	 .sampleBy(30s, max)
 ``` 
 
