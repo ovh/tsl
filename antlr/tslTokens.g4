@@ -2,10 +2,15 @@ lexer grammar tslTokens; // note "TSL tokens"
 
 // TSL native types and tokens
 DURATIONVAL: INT_LIT ([wdhms]|'ms'|'us'|'ns'|'ps')
+    | '-' INT_LIT ([wdhms]|'ms'|'us'|'ns'|'ps')
     ;
+
+
 
 NUMBER: INT_LIT 
     | FLOAT_LIT
+    | '-' INT_LIT
+    | '-' FLOAT_LIT
     ;
 
 STRING: RAW_STRING_LIT
@@ -38,15 +43,18 @@ BOTTOMNBY:         'bottomNBy';
 CEIL:              'ceil';
 CONNECT:           'connect';
 COUNT:             'count';
+CREATE:            'create';
 CUMULATIVE:        'cumulative';
 CUMULATIVESUM:     'cumulativeSum';
 DAY:               'day';
 DELTA:             'delta';
 DIVSERIES:         'div';
 EQUAL:             'equal';
+FILL:              'fill';
 FILTERBYLABELS:    'filterByLabels';
 FILTERBYNAME:      'filterByName';
 FILTERBYLASTVALUE: 'filterByLastValue';
+FINITE:            'finite';
 FIRST:             'first';
 FLOOR:             'floor';
 FROM:              'from';
@@ -60,6 +68,8 @@ GROUPWITHOUT:      'groupWithout';
 HOUR:              'hour';
 IGNORING:          'ignoring';
 JOIN:              'join';
+KEEPFIRSTVALUES:   'keepFirstValues';
+KEEPLASTVALUES:    'keepLastValues';
 LAST:              'last';
 LABELS:            'labels';
 LESSOREQUAL:       'lessOrEqual';
@@ -80,12 +90,14 @@ MONTH:             'month';
 MULSERIES:         'mul';
 NEGMASK:           'negmask';
 NOTEQUAL:          'notEqual';
+NOW:               'now';
 NAMES:             'names';
 ON:                'on';
 ORL:               'or';
 PERCENTILE:        'percentile';
 PROM:              'prom';
 PROMETHEUS:        'prometheus';
+QUANTIZE:          'quantize';
 RATE:              'rate';
 REMOVELABELS:      'removeLabels';
 REMOVE:            'remove';
@@ -99,6 +111,9 @@ SAMPLE:            'sample';
 SAMPLEBY:          'sampleBy';
 SELECT:            'select';
 SELECTORS:         'selectors';
+SERIES:            'series';
+SETLABELS:         'setLabels';
+SETVALUES:         'setValues';
 SHIFT:             'shift';
 SHRINK:            'shrink';
 SORT:              'sort';
@@ -111,8 +126,12 @@ STDVAR:            'stdvar';
 STORE:             'store';
 SUBSERIES:         'sub';
 SUM:               'sum';
+TOBOOLEAN:         'toboolean';
+TODOUBLE:          'todouble';
+TOLONG:            'tolong';
 TOPN:              'topN';
 TOPNBY:            'topNBy';
+TOSTRING:          'tostring';
 TIMECLIP:          'timeclip';
 TIMEMODULO:        'timemodulo';
 TIMESTAMP:         'timestamp';
