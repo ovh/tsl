@@ -429,7 +429,7 @@ The following TSL methods can be used to apply arithmetic operators on metrics:
 * The **logN** operator. Compute values logN of the **number parameter**, example: _.logN(2)_
 * The **rate** operator. Compute a **rate** (by default per second when no parameter are sets) or on a specify duration, example: _.rate()_, _.rate(1m)_
 * The **sqrt** operator. Compute values **square root**, example: _.sqrt()_
-* The **quantize** operator. Compute the amount of **values** inside a **step** on the complete query range or per parameter duration. This generate a single metric per step, based on the label key specified as first parameter. The second parameter corresponds to the step value: it can be a single number or integer value, or a fix step set modelised as a number or integer list. The last optional parameter for the quantize method is the quantize duration. This method can be useful to compute histograms, use example: _.quantize("quantile", [ 0, 10 ], 2m))_, _.quantize("quantile", 0.1))_
+* The **quantize** operator. Compute the amount of **values** inside a **step** on the complete query range or per parameter duration. This generate a single metric per step, based on the label key specified as first parameter. The second parameter corresponds to the step value: it can be a single number or integer value, or a fix step set modelised as a number or integer list. The last optional parameter for the quantize method is the quantize duration. This method can be useful to compute histograms, use example: _.quantize("quantile", [ 0, 10 ], 2m)_, _.quantize("quantile", 0.1)_
 
 > The **logN** operator is not available on **Prometheus**.
 
