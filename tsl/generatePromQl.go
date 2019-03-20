@@ -301,7 +301,7 @@ func (protoParser *ProtoParser) promFrameworksOp(frameworks []FrameworkStatement
 
 			suffix.WriteString(suffixGroup)
 
-		case MEAN, MIN, MAX, SUM, COUNT, STDDEV, STDVAR, RATE, DELTA, PERCENTILE:
+		case MEAN, MIN, MAX, SUM, COUNT, STDDEV, STDVAR, RATE, DELTA, PERCENTILE, WINDOW:
 
 			if hasWindowMapper {
 				message := "over_time " + framework.operator.String() + " methods can be done only once per query"
@@ -489,9 +489,19 @@ func (protoParser *ProtoParser) promOverTime(query string, framework FrameworkSt
 		aggregator = toPromQl[framework.operator]
 	}
 
+	if framework.operator == WINDOW {
+		aggregator = framework.attributes[Aggregator].tokenType.String()
+
+		if aggregator == MEAN.String() {
+			aggregator = toPromQl[MEAN]
+		} else if aggregator == PERCENTILE.String() {
+			aggregator = toPromQl[PERCENTILE]
+		}
+	}
+
 	param := ""
 
-	if framework.operator == PERCENTILE {
+	if framework.operator == PERCENTILE || aggregator == toPromQl[PERCENTILE] {
 		q, err := strconv.ParseFloat(framework.attributes[MapperValue].lit, 64)
 
 		if err != nil {
@@ -510,8 +520,12 @@ func (protoParser *ProtoParser) promOverTime(query string, framework FrameworkSt
 
 	// Verify current mapper has only one parameter: a mapper sampling
 	sampling, hasSampler := framework.attributes[MapperSampling]
-	if !hasSampler {
 
+	if framework.operator == WINDOW {
+		sampling, hasSampler = framework.attributes[MapperPre]
+	}
+
+	if !hasSampler {
 		if _, hasUnNamedAttributes := framework.unNamedAttributes[0]; !hasUnNamedAttributes {
 			message := "over_time function expects one mapper sampling for " + framework.operator.String()
 			return "", protoParser.NewProtoError(message, framework.pos)
