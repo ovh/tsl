@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
-
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -892,24 +890,22 @@ func (protoParser *ProtoParser) getMapper(framework FrameworkStatement, sampleSp
 	post := "0"
 	if attribute, hasSampler := framework.attributes[MapperSampling]; hasSampler {
 		mapSampler := protoParser.parseShift(attribute.lit)
-
 		pre = mapSampler + " " + sampleSpan + " / ROUND"
-	} else {
+	}
 
-		if attribute, ok := framework.attributes[MapperPre]; ok {
-			if attribute.tokenType == INTEGER {
-				pre = attribute.lit
-			} else if attribute.tokenType == DURATIONVAL {
-				pre = protoParser.parseShift(attribute.lit) + " " + sampleSpan + " /"
-			}
+	if attribute, ok := framework.attributes[MapperPre]; ok {
+		if attribute.tokenType == INTEGER {
+			pre = attribute.lit
+		} else if attribute.tokenType == DURATIONVAL {
+			pre = "-" + protoParser.parseShift(attribute.lit)
 		}
+	}
 
-		if attribute, ok := framework.attributes[MapperPost]; ok {
-			if attribute.tokenType == INTEGER {
-				post = attribute.lit
-			} else if attribute.tokenType == DURATIONVAL {
-				post = protoParser.parseShift(attribute.lit) + " " + sampleSpan + " /"
-			}
+	if attribute, ok := framework.attributes[MapperPost]; ok {
+		if attribute.tokenType == INTEGER {
+			post = attribute.lit
+		} else if attribute.tokenType == DURATIONVAL {
+			post = "-" + protoParser.parseShift(attribute.lit)
 		}
 	}
 
@@ -1180,11 +1176,8 @@ func (protoParser *ProtoParser) filterWarpScript(framework FrameworkStatement) (
 			if err != nil {
 				return "", err
 			}
-			log.Warn(index)
 			filtersField[index] = *whereItem
 		}
-
-		log.Warn(filtersField)
 		value += protoParser.getFetchLabels(filtersField)
 
 	case FILTERBYNAME:
