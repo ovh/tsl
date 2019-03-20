@@ -198,3 +198,41 @@ select('foo').add(1).timemodulo(100, "mod")
 mySelect.renameLabelValue("dc", "lg.*", "new-dc")
 
 add(mySelect.add(1), select('foo').add(1).timemodulo(100, "mod"))
+
+select('foo').abs()
+select('foo').resets()
+
+select('foo').finite()
+
+select('foo').keepLastValues()
+select('foo').keepLastValues(10)
+select('foo').keepFirstValues(10)
+select('foo').keepFirstValues()
+
+select('foo').timesplit(now, 42, 'test')
+select('foo').timesplit(1h, 4, 'test')
+select('foo').timesplit(20000000, 1, 'test')
+select('foo').timemodulo(42, "quotient")
+select('foo').timeclip(now, 200000)
+select('foo').timeclip(1535641320000000, 2m)
+select('foo').timeclip("2018-04-22T00:57:00-05:00", "2018-04-22T01:00:00-05:00")
+
+select('foo').quantize("quantile", 0.1)
+select('foo').quantize("quantile", 0.1, 2m)
+select('foo').quantize("quantile",[ 0, 10 ], 2m)
+select('foo').quantize("quantile",[ 0, 10 ])
+
+select('foo').tolong()
+select('foo').toboolean()
+select('foo').todouble()
+select('foo').tostring()
+
+select("sys.cpu.nice")
+  .from(1346846400000000,1346847000006000)
+  .sampleBy(span=1m, aggregator="mean", fill=fill(0), relative=false)
+
+
+create(series("name"), series("name"))
+
+create(series("test").setLabels(["l0=42","l1=42"]).setValues(now, [ -5m, 2], [0, 1]).setValues(now,[ 2m, 3]), series("test2").setLabels(["l0=42","l1=42"]).setValues(now, [-5m, 2], [0, 1]))
+    .sampleBy(30s, max)

@@ -429,7 +429,7 @@ The following TSL methods can be used to apply arithmetic operators on metrics:
 * The **logN** operator. Compute values logN of the **number parameter**, example: _.logN(2)_
 * The **rate** operator. Compute a **rate** (by default per second when no parameter are sets) or on a specify duration, example: _.rate()_, _.rate(1m)_
 * The **sqrt** operator. Compute values **square root**, example: _.sqrt()_
-* The **quantize** operator. Compute the amount of **values** inside a **step** on the complete query range or per parameter duration. This generate a single metric per step, based on the label key specified as first parameter. The second parameter corresponds to the step value: it can be a single number or integer value, or a fix step set modelised as a number or integer list. The last optional parameter for the quantize method is the quantize duration. This method can be useful to compute histograms, use example: _.quantize("quantile", [ 0, 10 ], 2m))_, _.quantize("quantile", 0.1))_
+* The **quantize** operator. Compute the amount of **values** inside a **step** on the complete query range or per parameter duration. This generate a single metric per step, based on the label key specified as first parameter. The second parameter corresponds to the step value: it can be a single number or integer value, or a fix step set modelised as a number or integer list. The last optional parameter for the quantize method is the quantize duration. This method can be useful to compute histograms, use example: _.quantize("quantile", [ 0, 10 ], 2m)_, _.quantize("quantile", 0.1)_
 
 > The **logN** operator is not available on **Prometheus**.
 
@@ -735,12 +735,14 @@ The **series** method is used to create a Time Series, only in Warp 10 for now, 
 
 The **setValues** takes n parameter, the first one (optional) is the base Timestamp of the values (by default zero). Then the other are a two elements array composed of a timestamp (that would be add to the base one) and the value to set. Use example: _.setValues([0, 1], [100, 2])._
 
-At the end of the create statement, all other Time Series method can be apply on.
+The **setLabels** takes a single parameter: a labels string list where the key and values are split per the equals symbol.
+
+At the end of the create statement, all other Time Series set methods can be apply on.
 
 A more complex but valid tsl statement to create 2 Time Series would be:
 
 ```tsl
-create(series("test").setLabels(["l0=42","l1=42"]).setValues("now", [-5m, 2], [0, 1]).setValues("now",[2m, 3]),series("test2").setLabels(["l0=42","l1=42"]).setValues("now", [-5m, 2], [0, 1]))
+create(series("test").setLabels(["l0=42","l1=42"]).setValues("now", [-5m, 2], [0, 1]).setValues("now",[2m, 3]),series("test2").setLabels(["l0=42","l1=42"]).setValues(now, [-5m, 2], [0, 1]))
 	 .sampleBy(30s, max)
 ``` 
 

@@ -19,8 +19,30 @@ expr:  selectExpr
     |  connectExpr (DOT selectExpr)?
     |  opExpr
     |  form
+    |  createExpr
     ;
 
+// Create a Time series set statement
+createExpr: CREATE LPAREN createSeries (COMMA createSeries)* RPAREN (seriesOperations)* 
+    ;
+
+// Internal create statement to create a single series
+createSeries: SERIES LPAREN (STRING|IDENT) RPAREN (DOT postSeries)* 
+    ;
+
+// Internal create statement to fill a single series
+postSeries: setLabels | setValues
+    ;
+
+// Internal create statement to set a series labels
+setLabels: SETLABELS LPAREN (STRING_LIST | EMPTY_LIST | STRING | IDENT) RPAREN
+    ;
+
+// Internal create statement to set a series values
+setValues: SETVALUES LPAREN (NUMBER|IDENT|NOW COMMA)? ('[' WS* (NUMBER|DURATIONVAL|IDENT) (COMMA (NUMBER|DURATIONVAL|IDENT))* WS* ']') (COMMA '[' WS* (NUMBER|DURATIONVAL|IDENT) (COMMA (NUMBER|DURATIONVAL|IDENT))* WS* ']')* RPAREN
+    ;
+
+// Declare a variable statement
 form: IDENT '=' expr
     |   IDENT '=' basic
     | IDENT seriesOperations*
@@ -105,7 +127,11 @@ sampleParam: fillSampling | COMMA spanSampling | COMMA countSampling | relativeS
     ;
 
 // Sampling fill param
-fillSampling:  COMMA ('fill' '=')? fill=(STRING|STRING_LIST|EMPTY_LIST|IDENT)
+fillSampling:  COMMA (('fill' '=')? fillvalue=(STRING|STRING_LIST|EMPTY_LIST|IDENT) | ('fill' '=')? fillMethod)
+    ;
+
+// Internal fill method (to fill data by a value)
+fillMethod:FILL LPAREN (NUMBER | DURATIONVAL | STRING | TRUE | FALSE | IDENT ) RPAREN
     ;
 
 // Sampling relative param
@@ -141,7 +167,6 @@ windowAggregators: DELTA | STDDEV | STDVAR
     | aggregators
     ;
 
-
 // Aggregators available for operations like sampling, grouping
 aggregators: MIN | MAX | MEAN | FIRST | LAST | SUM | (STRING | IDENT) COMMA JOIN | MEDIAN | COUNT | ANDL | ORL | NUMBER COMMA PERCENTILE | STRING | IDENT
     ;
@@ -152,7 +177,7 @@ arithmeticOperationWithParam: DOT arithmeticOperatorWithParam LPAREN value=(NUMB
 
 // Arithmetic operator with a single number parameter
 arithmeticOperatorWithParam: (ADDSERIES | SUBSERIES | MULSERIES | DIVSERIES | LOGN | EQUAL | NOTEQUAL | GREATERTHAN | GREATEROREQUAL | LESSTHAN 
-    | LESSOREQUAL | MAXWITH | MINWITH | TOPN | BOTTOMN | SHRINK | TIMESCALE)
+    | LESSOREQUAL | MAXWITH | MINWITH | TOPN | BOTTOMN | SHRINK | TIMESCALE | KEEPFIRSTVALUES | KEEPLASTVALUES )
     ;
 
 // Simple operations
@@ -160,15 +185,18 @@ simpleOperation: DOT simpleOperator LPAREN RPAREN
     ;
 
 // Operator that does not require a parameter
-simpleOperator: ABS CEIL CUMULATIVESUM FLOOR RESETS ROUND LN LOG2 LOG10 SQRT DAY WEEKDAY HOUR MINUTE MONTH YEAR TIMESTAMP SORT SORTDESC 
+simpleOperator: ABS | CEIL | CUMULATIVESUM | FLOOR | FINITE | RESETS | ROUND | LN | LOG2 | LOG10 | SQRT | DAY | WEEKDAY | HOUR | MINUTE 
+    | MONTH | YEAR | TIMESTAMP | SORT | SORTDESC | KEEPFIRSTVALUES | KEEPLASTVALUES | TOLONG | TOBOOLEAN | TODOUBLE | TOSTRING
     ;
 
 // Operation with a single string parameter
 stringOperation: DOT stringOperator LPAREN value=(STRING|IDENT) RPAREN
     ;
 
+// Time series set operator expecting a string parameter
 stringOperator: ADDNAMEPREFIX | ADDNAMESUFFIX | RENAME | RENAMEBY | STORE | FILTERBYNAME | FILTERBYLASTVALUE
     ;
+
 // Complex operation fix the grammar rule for unique TSL functions as
 // - rate
 // - shift
@@ -185,9 +213,10 @@ complexOperation: DOT RATE LPAREN (DURATIONVAL|IDENT)? RPAREN
     | DOT (REMOVELABELS|FILTERBYLABELS) LPAREN (STRING|IDENT) (COMMA (STRING|IDENT))* RPAREN
     | DOT RENAMELABELKEY LPAREN (STRING|IDENT) COMMA (STRING|IDENT) RPAREN
     | DOT RENAMELABELVALUE LPAREN (STRING|IDENT) COMMA (STRING|IDENT) (COMMA (STRING|IDENT))? RPAREN
-    | DOT TIMECLIP LPAREN (NUMBER|IDENT) COMMA (NUMBER|IDENT) RPAREN
+    | DOT TIMECLIP LPAREN (NUMBER|IDENT|NOW|STRING) COMMA (NUMBER|IDENT|DURATIONVAL|STRING) RPAREN
     | DOT TIMEMODULO LPAREN (NUMBER|IDENT) COMMA (STRING|IDENT) RPAREN
-    | DOT TIMESPLIT LPAREN (NUMBER|DURATIONVAL) COMMA (NUMBER|IDENT) COMMA (STRING|IDENT) RPAREN
+    | DOT TIMESPLIT LPAREN (NUMBER|DURATIONVAL|NOW|IDENT) COMMA (NUMBER|IDENT) COMMA (STRING|IDENT) RPAREN
+    | DOT QUANTIZE LPAREN (STRING|IDENT) COMMA (('[' WS* (NUMBER|IDENT) (COMMA (NUMBER|IDENT))* WS* ']')|EMPTY_LIST|NUMBER|IDENT|) (COMMA (DURATIONVAL|IDENT))? RPAREN
     ;
 
 // Apply a multiple operations between several statements results
