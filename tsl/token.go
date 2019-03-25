@@ -90,6 +90,8 @@ const (
 	JOIN
 	KEEPFIRSTVALUES
 	KEEPLASTVALUES
+	KEEPFIRSTVALUE
+	KEEPLASTVALUE
 	LABELS
 	LAST
 	LESSOREQUAL
@@ -232,6 +234,8 @@ var tokens = [...]string{
 	JOIN:              "join",
 	KEEPFIRSTVALUES:   "keepFirstValues",
 	KEEPLASTVALUES:    "keepLastValues",
+	KEEPFIRSTVALUE:    "keepFirstValue",
+	KEEPLASTVALUE:     "keepLastValue",
 	LAST:              "last",
 	LABELS:            "labels",
 	LESSOREQUAL:       "lessOrEqual",
