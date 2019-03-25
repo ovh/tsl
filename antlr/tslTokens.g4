@@ -70,6 +70,8 @@ IGNORING:          'ignoring';
 JOIN:              'join';
 KEEPFIRSTVALUES:   'keepFirstValues';
 KEEPLASTVALUES:    'keepLastValues';
+KEEPFIRSTVALUE:   'keepFirstValue';
+KEEPLASTVALUE:    'keepLastValue';
 LAST:              'last';
 LABELS:            'labels';
 LESSOREQUAL:       'lessOrEqual';
