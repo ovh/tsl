@@ -683,7 +683,7 @@ loop:
 
 			hasSampling = true
 
-		case ADDSERIES, SUBSERIES, MULSERIES, DIVSERIES, EQUAL, MAXWITH, MINWITH, NOTEQUAL, GREATERTHAN, GREATEROREQUAL, LESSTHAN, LESSOREQUAL, LOGN, SHRINK, KEEPFIRSTVALUES, KEEPLASTVALUES, TIMESCALE:
+		case ADDSERIES, SUBSERIES, MULSERIES, DIVSERIES, EQUAL, MAXWITH, MINWITH, NOTEQUAL, GREATERTHAN, GREATEROREQUAL, LESSTHAN, LESSOREQUAL, LOGN, SHRINK, KEEPFIRSTVALUES, KEEPLASTVALUES, KEEPFIRSTVALUE, KEEPLASTVALUE, TIMESCALE:
 			instruction, err = p.parseSingleNumericOperator(tok, pos, lit, instruction)
 
 			if err != nil {
@@ -2253,6 +2253,14 @@ func (p *Parser) parseRenameLabelValue(tok Token, pos Pos, lit string, instructi
 
 // TSL operator parser that includes a Number parameter
 func (p *Parser) parseSingleNumericOperator(tok Token, pos Pos, lit string, instruction *Instruction) (*Instruction, error) {
+
+	// Reword singular keep to use keep only one "kind" of operator
+	if tok == KEEPFIRSTVALUE {
+		tok = KEEPFIRSTVALUES
+	} else if tok == KEEPLASTVALUE {
+		tok = KEEPLASTVALUES
+	}
+
 	op := &FrameworkStatement{}
 	op.pos = pos
 	op.operator = tok

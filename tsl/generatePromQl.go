@@ -39,12 +39,13 @@ var toPromQl = [...]string{
 
 // Ql main syntax
 type Ql struct {
-	API   string `json:"api,omitempty"`
-	Token string `json:"token,omitempty"`
-	Query string `json:"query,omitempty"`
-	Start string `json:"start,omitempty"`
-	End   string `json:"end,omitempty"`
-	Step  string `json:"step,omitempty"`
+	API          string `json:"api,omitempty"`
+	Token        string `json:"token,omitempty"`
+	Query        string `json:"query,omitempty"`
+	InstantQuery bool   `json:"instantQuery,omitempty"`
+	Start        string `json:"start,omitempty"`
+	End          string `json:"end,omitempty"`
+	Step         string `json:"step,omitempty"`
 }
 
 // GeneratePromQl Generate Global Promql to execute from an instruction list
@@ -90,7 +91,7 @@ func (protoParser *ProtoParser) GeneratePromQl(instruction Instruction, now time
 		if len(instruction.selectStatement.frameworks) > 0 {
 
 			var err error
-			promql.Query, err = protoParser.promFrameworksOp(instruction.selectStatement.frameworks, promql, true)
+			promql.Query, promql.InstantQuery, err = protoParser.promFrameworksOp(instruction.selectStatement.frameworks, promql, true)
 
 			if err != nil {
 				return nil, err
@@ -216,7 +217,7 @@ func (protoParser *ProtoParser) promSelectQuery(instruction Instruction, now tim
 	}
 
 	if len(instruction.selectStatement.frameworks) > 0 {
-		promql.Query, err = protoParser.promFrameworksOp(instruction.selectStatement.frameworks, promql, false)
+		promql.Query, promql.InstantQuery, err = protoParser.promFrameworksOp(instruction.selectStatement.frameworks, promql, false)
 	}
 
 	if err != nil {
@@ -260,8 +261,8 @@ func (protoParser *ProtoParser) promSampleBy(sampleBy FrameworkStatement) (strin
 	return sampleBy.attributes[SampleSpan].lit, nil
 }
 
-// Generate each individual method statement
-func (protoParser *ProtoParser) promFrameworksOp(frameworks []FrameworkStatement, promql *Ql, skipSample bool) (string, error) {
+// promFrameworksOp Generate each individual method statement, returns the PromQL query string and whether its a range_query (false by default) or an instant query
+func (protoParser *ProtoParser) promFrameworksOp(frameworks []FrameworkStatement, promql *Ql, skipSample bool) (string, bool, error) {
 
 	hasWindowMapper := false
 	hasOffset := false
@@ -271,16 +272,23 @@ func (protoParser *ProtoParser) promFrameworksOp(frameworks []FrameworkStatement
 	prefix := make([]string, 0)
 	var suffix bytes.Buffer
 
+	hasKeepLastValue := false
+
 	for index, framework := range frameworks {
 		// Skip first sample operator
 		if index == 0 && (framework.operator == SAMPLE || framework.operator == SAMPLEBY) {
 			continue
 		}
+
+		if hasKeepLastValue {
+			message := "keepLastValues need to be the last method call on a Prometheus query"
+			return "", hasKeepLastValue, protoParser.NewProtoError(message, framework.pos)
+		}
 		switch framework.operator {
 		case SHIFT:
 			if hasOffset {
 				message := "shift can be done only once"
-				return "", protoParser.NewProtoError(message, framework.pos)
+				return "", hasKeepLastValue, protoParser.NewProtoError(message, framework.pos)
 			}
 
 			hasOffset = true
@@ -291,26 +299,38 @@ func (protoParser *ProtoParser) promFrameworksOp(frameworks []FrameworkStatement
 				continue
 			}
 			message := "sampling must be the first operation set"
-			return "", protoParser.NewProtoError(message, framework.pos)
+			return "", hasKeepLastValue, protoParser.NewProtoError(message, framework.pos)
 
 		case ADDSERIES, ANDL, SUBSERIES, MULSERIES, DIVSERIES, EQUAL, GREATEROREQUAL, GREATERTHAN, NOTEQUAL, LESSOREQUAL, LESSTHAN, ORL:
 			suffixGroup, err := protoParser.promArithmeticOperators(framework)
 			if err != nil {
-				return "", err
+				return "", hasKeepLastValue, err
 			}
 
 			suffix.WriteString(suffixGroup)
+
+		case KEEPLASTVALUES:
+			hasKeepLastValue = true
+			if len(framework.attributes) > 0 {
+
+				numberValue, err := strconv.Atoi(framework.attributes[MapperValue].lit)
+
+				if numberValue > 1 || err != nil {
+					message := "keepLastValues can't be applied with an argument as it call instant values query in Prometheus"
+					return "", hasKeepLastValue, protoParser.NewProtoError(message, framework.pos)
+				}
+			}
 
 		case MEAN, MIN, MAX, SUM, COUNT, STDDEV, STDVAR, RATE, DELTA, PERCENTILE, WINDOW:
 
 			if hasWindowMapper {
 				message := "over_time " + framework.operator.String() + " methods can be done only once per query"
-				return "", protoParser.NewProtoError(message, framework.pos)
+				return "", hasKeepLastValue, protoParser.NewProtoError(message, framework.pos)
 			}
 
 			promStatement, err := protoParser.promOverTime(promql.Query, framework, hasOffset, offset, promql.Step)
 			if err != nil {
-				return "", err
+				return "", hasKeepLastValue, err
 			}
 			buffer.WriteString(promStatement)
 			hasWindowMapper = true
@@ -319,7 +339,7 @@ func (protoParser *ProtoParser) promFrameworksOp(frameworks []FrameworkStatement
 			promStatement, suffixGroup, err := protoParser.promGroup(framework)
 			suffix.WriteString(suffixGroup)
 			if err != nil {
-				return "", err
+				return "", hasKeepLastValue, err
 			}
 			prefix = append(prefix, promStatement)
 
@@ -327,7 +347,7 @@ func (protoParser *ProtoParser) promFrameworksOp(frameworks []FrameworkStatement
 			promStatement, suffixGroup, err := protoParser.promOperator(framework)
 			suffix.WriteString(suffixGroup)
 			if err != nil {
-				return "", err
+				return "", hasKeepLastValue, err
 			}
 
 			// Append to request prefix
@@ -335,7 +355,7 @@ func (protoParser *ProtoParser) promFrameworksOp(frameworks []FrameworkStatement
 
 		default:
 			message := "operator " + framework.operator.String() + " not supported in TSL for " + protoParser.name
-			return "", protoParser.NewProtoError(message, framework.pos)
+			return "", hasKeepLastValue, protoParser.NewProtoError(message, framework.pos)
 		}
 
 	}
@@ -349,7 +369,7 @@ func (protoParser *ProtoParser) promFrameworksOp(frameworks []FrameworkStatement
 	// Returned sampled metrics
 	if hasWindowMapper {
 		resString := strings.Join(prefix, "") + buffer.String() + suffix.String()
-		return resString, nil
+		return resString, hasKeepLastValue, nil
 	}
 
 	// Returned shifted metrics
@@ -357,12 +377,12 @@ func (protoParser *ProtoParser) promFrameworksOp(frameworks []FrameworkStatement
 		buffer.WriteString(promql.Query + " offset " + offset + ")")
 
 		resString := strings.Join(prefix, "") + buffer.String() + suffix.String()
-		return resString, nil
+		return resString, hasKeepLastValue, nil
 	}
 
 	// Return operatored metrics
 	resString := strings.Join(prefix, "") + promql.Query + suffix.String()
-	return resString, nil
+	return resString, hasKeepLastValue, nil
 }
 
 func (protoParser *ProtoParser) promArithmeticOperators(framework FrameworkStatement) (string, error) {

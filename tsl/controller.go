@@ -262,9 +262,16 @@ func exec(req *Request, warp string, ctx echo.Context) (string, error) {
 
 // Execute PromQL on prometheus metrics backend
 func execProm(req *Ql, ctx echo.Context, prom string) (string, error) {
+
+	queryType := "query_range"
+
+	if req.InstantQuery {
+		queryType = "query"
+	}
 	u, err := url.Parse(
-		fmt.Sprintf("%s/api/v1/query_range?query=%s&start=%s&end=%s&step=%s",
+		fmt.Sprintf("%s/api/v1/%s?query=%s&start=%s&end=%s&step=%s",
 			prom,
+			queryType,
 			url.QueryEscape(req.Query),
 			url.QueryEscape(req.Start),
 			url.QueryEscape(req.End),
