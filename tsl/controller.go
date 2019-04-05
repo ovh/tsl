@@ -107,9 +107,27 @@ func (tsl Tsl) Query(ctx echo.Context) error {
 	// Get pivot format info
 	log.Debug(query.String())
 
+	// Only warp and Prom checks for no-backend queries
+	onlyWarp := true
+	onlyProm := true
+
 	// Create an instructions map per different back-end to call
 	instructionsPerAPI := map[string][]Instruction{}
+
 	for _, instruction := range query.Statements {
+
+		// Checks mixed backend in instruction
+		if !(instruction.connectStatement.connectType == WARP.String() || instruction.connectStatement.connectType == "") {
+			onlyWarp = false
+		}
+
+		// Checks mixed backend in instruction
+		if !(instruction.connectStatement.connectType == PROMETHEUS.String() ||
+			instruction.connectStatement.connectType == PROM.String() ||
+			instruction.connectStatement.connectType == "") {
+			onlyProm = false
+		}
+
 		if instructionSet, ok := instructionsPerAPI[instruction.connectStatement.api]; ok {
 			instructionSet = append(instructionSet, *instruction)
 			instructionsPerAPI[instruction.connectStatement.api] = instructionSet
@@ -129,6 +147,27 @@ func (tsl Tsl) Query(ctx echo.Context) error {
 
 	allowAuthenticate := viper.GetBool("tsl.warp10.authenticate")
 
+	// Generate WarpScript when calling Warp10 no-backend
+	if viper.GetBool("no-backend") {
+
+		proto := ""
+		if onlyWarp {
+			proto = WARP.String()
+		} else if onlyProm {
+			proto = PROMETHEUS.String()
+		}
+
+		nativeRes, err := GenerateNativeQueries(proto, string(body), tokenString, allowAuthenticate)
+
+		if err != nil {
+			tsl.WarnCounter.Inc()
+			return ctx.JSON(http.StatusBadRequest, err)
+		}
+
+		return ctx.String(http.StatusOK, nativeRes)
+	}
+
+	// Execute all Warp Requests
 	for _, warp := range warpEndpoints {
 
 		if instructions, ok := instructionsPerAPI[warp]; ok {
@@ -170,6 +209,124 @@ func (tsl Tsl) Query(ctx echo.Context) error {
 	}
 
 	return ctx.String(http.StatusOK, buffer.String())
+}
+
+// GenerateNativeQueries Generate a TSL query in its native proto format
+// allowAuthenticate works only for a Warp 10 backend (force a Token authenticate to raise native limits)
+func GenerateNativeQueries(proto string, tsl string, defaultToken string, allowAuthenticate bool) (string, error) {
+	switch proto {
+	case WARP.String():
+		return tslToWarpScript(tsl, defaultToken, allowAuthenticate)
+	case PROMETHEUS.String(), PROM.String():
+		return tslToPromQL(tsl, defaultToken)
+	}
+	return "", NewError(errors.New("The specified backend is not support. No-backend doesn't support mixed backend queries"))
+}
+
+// tslToWarpScript method to generate WarpScript from TSL statements
+func tslToWarpScript(tsl string, defaulToken string, allowAuthenticate bool) (string, error) {
+
+	// Get query parsing result
+	parser, err := NewParser(strings.NewReader(tsl), "warp", defaulToken, 0, "", "")
+	if err != nil {
+		return "", err
+	}
+
+	query, err := parser.Parse()
+	if err != nil {
+		return "", err
+	}
+
+	// Output query buffer
+	var buffer bytes.Buffer
+
+	instructions := []Instruction{}
+
+	for _, instruction := range query.Statements {
+		instructions = append(instructions, *instruction)
+	}
+
+	protoParser := ProtoParser{name: "warp 10", lineStart: 0}
+	warpscript, err := protoParser.GenerateWarpScript(instructions, allowAuthenticate)
+	if err != nil {
+		return "", err
+	}
+
+	buffer.WriteString(warpscript)
+	buffer.WriteString("\n")
+	// By default return an empty array
+	if buffer.String() == "" {
+		buffer.WriteString("[]")
+	}
+
+	return buffer.String(), nil
+}
+
+// toPromQL method to generate promQl queries from TSL statements
+func tslToPromQL(tsl string, token string) (string, error) {
+
+	// Get query parsing result
+	parser, err := NewParser(strings.NewReader(tsl), "warp", token, 0, "", "")
+	if err != nil {
+		return "", err
+	}
+
+	query, err := parser.Parse()
+	if err != nil {
+		return "", err
+	}
+
+	// Output query buffer
+	var buffer bytes.Buffer
+
+	instructions := []Instruction{}
+
+	for _, instruction := range query.Statements {
+		instructions = append(instructions, *instruction)
+	}
+
+	promRequests := make([]*Ql, len(instructions))
+	for index, instruction := range instructions {
+
+		log.Debug(instruction)
+		protoParser := ProtoParser{name: "prometheus", lineStart: 0}
+		promQl, err := protoParser.GeneratePromQl(instruction, time.Now().UTC())
+		if err != nil {
+			return "", err
+		}
+
+		promQl.API = instruction.connectStatement.api
+
+		promRequests[index] = promQl
+	}
+
+	for _, promQl := range promRequests {
+
+		if promQl.Query != "" {
+			log.Debug(promQl)
+			queryType := "query_range"
+
+			if promQl.InstantQuery {
+				queryType = "query"
+			}
+
+			buffer.WriteString(fmt.Sprintf("%s/api/v1/%s?query=%s&start=%s&end=%s&step=%s",
+				promQl.API,
+				queryType,
+				url.QueryEscape(promQl.Query),
+				url.QueryEscape(promQl.Start),
+				url.QueryEscape(promQl.End),
+				url.QueryEscape(promQl.Step)))
+			buffer.WriteString("\n")
+		}
+	}
+
+	// By default return an empty array
+	if buffer.String() == "" {
+		buffer.WriteString("[]")
+	}
+
+	return buffer.String(), nil
 }
 
 // Execute all Prom requests on a prometheus backend

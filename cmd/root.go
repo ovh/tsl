@@ -40,6 +40,7 @@ func init() {
 	// Cobra supports Persistent Flags, which, if defined here,
 	// will be global for your application.
 	RootCmd.PersistentFlags().StringP("config", "c", "", "config file (default is $HOME/.tsl.yaml)")
+	RootCmd.PersistentFlags().Bool("no-backend", false, "activate no backend mode to redirect the output to standard output")
 	RootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 
 	// Cobra also supports local flags, which will only run
