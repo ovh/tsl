@@ -19,7 +19,7 @@ type ProtoParser struct {
 }
 
 // NewTsl is creating a new tsl query handler
-func NewTsl() *Tsl {
+func NewTsl(promRegistry *prometheus.Registry) *Tsl {
 	tsl := &Tsl{}
 
 	// metrics
@@ -29,21 +29,21 @@ func NewTsl() *Tsl {
 		Name:      "requests",
 		Help:      "Number of request handled.",
 	})
-	prometheus.MustRegister(tsl.ReqCounter)
+	promRegistry.MustRegister(tsl.ReqCounter)
 	tsl.ErrCounter = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "tsl",
 		Subsystem: "controller",
 		Name:      "errors",
 		Help:      "Number of request in errors.",
 	})
-	prometheus.MustRegister(tsl.ErrCounter)
+	promRegistry.MustRegister(tsl.ErrCounter)
 	tsl.WarnCounter = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "tsl",
 		Subsystem: "controller",
 		Name:      "warnings",
 		Help:      "Number of errored client requests.",
 	})
-	prometheus.MustRegister(tsl.WarnCounter)
+	promRegistry.MustRegister(tsl.WarnCounter)
 
 	return tsl
 }
