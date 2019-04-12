@@ -127,6 +127,7 @@ const (
 	RENAMEBY
 	RENAMELABELKEY
 	RENAMELABELVALUE
+	RENAMETEMPLATE
 	RESETS
 	ROUND
 	SAMPLE
@@ -269,6 +270,7 @@ var tokens = [...]string{
 	REMOVE:            "remove",
 	RENAME:            "rename",
 	RENAMEBY:          "renameBy",
+	RENAMETEMPLATE:    "renameTemplate",
 	RENAMELABELKEY:    "renameLabelKey",
 	RENAMELABELVALUE:  "renameLabelValue",
 	RESETS:            "resets",

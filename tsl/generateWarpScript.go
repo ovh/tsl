@@ -273,6 +273,14 @@ func (protoParser *ProtoParser) getFrameworksOp(selectStatement SelectStatement,
 			buffer.WriteString(protoParser.nValuesOperators(framework))
 			buffer.WriteString("\n")
 
+		case RENAMETEMPLATE:
+			renameTemplate, err := protoParser.renameTemplate(framework)
+			if err != nil {
+				return "", err
+			}
+			buffer.WriteString(renameTemplate)
+			buffer.WriteString("\n")
+
 		case FILTERBYLABELS, FILTERBYNAME, FILTERBYLASTVALUE:
 			filter, err := protoParser.filterWarpScript(framework)
 			if err != nil {
@@ -1315,6 +1323,47 @@ func (protoParser *ProtoParser) removeLabels(framework FrameworkStatement) (stri
 	}
 
 	value = value + "} RELABEL %> LMAP "
+
+	return value, nil
+}
+
+// operators generate WarpScript line for an individual statement
+func (protoParser *ProtoParser) renameTemplate(framework FrameworkStatement) (string, error) {
+	value := ""
+
+	if attribute, ok := framework.unNamedAttributes[0]; ok {
+		if attribute.tokenType != STRING {
+			message := "Rename template expects its parameter to be a STRING"
+			return "", protoParser.NewProtoError(message, framework.pos)
+		}
+
+		value = "<% DROP DUP 'series' STORE [ '" + attribute.lit + "' ]"
+		if strings.Contains(value, "${this.name}") {
+			value = strings.Replace(value, "${this.name}", "' $series NAME '", -1)
+		}
+
+		labels := strings.Split(value, "${this.labels.")
+
+		if len(labels) > 1 {
+
+			for i, label := range labels {
+				if i == 0 {
+					continue
+				}
+				labelKeys := strings.Split(label, "}")
+
+				if len(labelKeys) < 2 {
+					message := fmt.Sprintf("expect a } to end current label template: %s}", label)
+					return "", protoParser.NewProtoError(message, framework.pos)
+				}
+
+				value = strings.Replace(value, "${this.labels."+labelKeys[0]+"}", "' $series LABELS '"+labelKeys[0]+"' GET '", 1)
+			}
+		}
+
+		value += " '' JOIN RENAME %> LMAP"
+
+	}
 
 	return value, nil
 }

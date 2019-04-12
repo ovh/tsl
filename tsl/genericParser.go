@@ -718,7 +718,7 @@ loop:
 				return nil, err
 			}
 
-		case ADDNAMEPREFIX, ADDNAMESUFFIX, RENAME, RENAMEBY, STORE, FILTERBYNAME, FILTERBYLASTVALUE:
+		case ADDNAMEPREFIX, ADDNAMESUFFIX, RENAME, RENAMEBY, RENAMETEMPLATE, STORE, FILTERBYNAME, FILTERBYLASTVALUE:
 			instruction, err = p.parseNStringOperator(tok, pos, lit, 1, instruction)
 
 			if err != nil {
@@ -956,9 +956,6 @@ func (p *Parser) parseCreateSeries(tok Token, pos Pos, lit string, instruction *
 		}
 	}
 
-	if err != nil {
-		return nil, err
-	}
 	return instruction, nil
 }
 
@@ -1137,10 +1134,6 @@ func (p *Parser) parseSelect(tok Token, pos Pos, lit string, instruction *Instru
 		selectStatement.metric = fields[0].lit
 	} else if fields[0].tokenType == ASTERISK {
 		selectStatement.selectAll = true
-	}
-
-	if err != nil {
-		return nil, err
 	}
 
 	instruction.selectStatement = *selectStatement
@@ -2971,8 +2964,13 @@ func (p *Parser) parseTemplateString(tok Token, lit string, pos Pos, function st
 		toEvaluate := toEvaluateArray[0]
 
 		variable, exists := p.variables[toEvaluate]
+
+		if !exists && function == RENAMETEMPLATE.String() && strings.HasPrefix(strings.TrimSpace(toEvaluate), "this.") {
+			resultString = strings.Replace(resultString, "${"+toEvaluate+"}", "${"+strings.TrimSpace(toEvaluate)+"}", 1)
+			continue
+		}
 		if !exists {
-			errMessage := fmt.Sprintf("Error when parsing template %q in %q function, %q variable isn't declared", lit, function, toEvaluate)
+			errMessage := fmt.Sprintf("Error when parsing template %q in %q function, %q variable isn't declared", lit, function, strings.TrimSpace(toEvaluate))
 			return "", p.NewTslError(errMessage, pos)
 		}
 
