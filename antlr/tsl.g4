@@ -194,7 +194,7 @@ stringOperation: DOT stringOperator LPAREN value=(STRING|IDENT) RPAREN
     ;
 
 // Time series set operator expecting a string parameter
-stringOperator: ADDNAMEPREFIX | ADDNAMESUFFIX | RENAME | RENAMEBY | STORE | FILTERBYNAME | FILTERBYLASTVALUE
+stringOperator: ADDNAMEPREFIX | ADDNAMESUFFIX | RENAME | RENAMEBY | RENAMETEMPLATE | STORE | FILTERBYNAME | FILTERBYLASTVALUE
     ;
 
 // Complex operation fix the grammar rule for unique TSL functions as

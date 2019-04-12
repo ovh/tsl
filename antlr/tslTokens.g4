@@ -107,6 +107,7 @@ RENAME:            'rename';
 RENAMEBY:          'renameBy';
 RENAMELABELKEY:    'renameLabelKey';
 RENAMELABELVALUE:  'renameLabelValue';
+RENAMETEMPLATE:    'renameTemplate';
 RESETS:            'resets';
 ROUND:             'round';
 SAMPLE:            'sample';
