@@ -5,8 +5,6 @@ DURATIONVAL: INT_LIT ([wdhms]|'ms'|'us'|'ns'|'ps')
     | '-' INT_LIT ([wdhms]|'ms'|'us'|'ns'|'ps')
     ;
 
-
-
 NUMBER: INT_LIT 
     | FLOAT_LIT
     | '-' INT_LIT
@@ -107,6 +105,7 @@ RENAME:            'rename';
 RENAMEBY:          'renameBy';
 RENAMELABELKEY:    'renameLabelKey';
 RENAMELABELVALUE:  'renameLabelValue';
+RENAMETEMPLATE:    'renameTemplate';
 RESETS:            'resets';
 ROUND:             'round';
 SAMPLE:            'sample';
