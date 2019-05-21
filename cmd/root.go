@@ -25,7 +25,7 @@ import (
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"github.com/ovh/tsl/middlewares"
-	"github.com/ovh/tsl/tsl"
+	"github.com/ovh/tsl/proxy"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -123,7 +123,7 @@ var RootCmd = &cobra.Command{
 		promRegistry := prometheus.NewRegistry()
 
 		// Register handler(s) for path(s)
-		tsl := tsl.NewTsl(promRegistry)
+		tsl := proxy.NewProxyTSL(promRegistry)
 		r.POST("/v0/query", tsl.Query)
 
 		// Use of a Prometheus custon registry to record TSL metrics
