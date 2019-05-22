@@ -354,7 +354,7 @@ func (protoParser *ProtoParser) promFrameworksOp(frameworks []FrameworkStatement
 			prefix = append(prefix, promStatement)
 
 		default:
-			message := "operator " + framework.operator.String() + " not supported in TSL for " + protoParser.name
+			message := "operator " + framework.operator.String() + " not supported in TSL for " + protoParser.Name
 			return "", hasKeepLastValue, protoParser.NewProtoError(message, framework.pos)
 		}
 

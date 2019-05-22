@@ -31,6 +31,16 @@ type Instruction struct {
 	isGlobalOperator bool
 }
 
+// GetConnectType return instruction connect type
+func (i Instruction) GetConnectType() string {
+	return i.connectStatement.connectType
+}
+
+// GetConnectAPI return instruction api
+func (i Instruction) GetConnectAPI() string {
+	return i.connectStatement.api
+}
+
 // Variable represents a TSL variable
 type Variable struct {
 	name        string

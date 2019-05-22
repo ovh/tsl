@@ -25,7 +25,7 @@ import (
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"github.com/ovh/tsl/middlewares"
-	"github.com/ovh/tsl/tsl"
+	"github.com/ovh/tsl/proxy"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -40,6 +40,7 @@ func init() {
 	// Cobra supports Persistent Flags, which, if defined here,
 	// will be global for your application.
 	RootCmd.PersistentFlags().StringP("config", "c", "", "config file (default is $HOME/.tsl.yaml)")
+	RootCmd.PersistentFlags().Bool("no-backend", false, "activate no backend mode to redirect the output to standard output")
 	RootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 
 	// Cobra also supports local flags, which will only run
@@ -122,7 +123,7 @@ var RootCmd = &cobra.Command{
 		promRegistry := prometheus.NewRegistry()
 
 		// Register handler(s) for path(s)
-		tsl := tsl.NewTsl(promRegistry)
+		tsl := proxy.NewProxyTSL(promRegistry)
 		r.POST("/v0/query", tsl.Query)
 
 		// Use of a Prometheus custon registry to record TSL metrics

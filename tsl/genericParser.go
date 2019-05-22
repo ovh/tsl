@@ -12,11 +12,23 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	lineStartHeader     = "TSL-Line-Start"
+	queryRandeHeader    = "TSL-Query-Range"
+	samplersCountHeader = "TSL-Samplers"
+)
+
 var reZeroOnly = regexp.MustCompile(`^\s*0+\s*$`)
 
 //
 // Define TSL parser utils methods
 //
+
+// ProtoParser contains proto global data
+type ProtoParser struct {
+	LineStart int    // Reset line counter to lineStart
+	Name      string // Proto name
+}
 
 // Parser represents a TSL parser
 type Parser struct {

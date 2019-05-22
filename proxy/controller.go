@@ -1,4 +1,4 @@
-package tsl
+package proxy
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo"
+	"github.com/ovh/tsl/tsl"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
@@ -51,9 +52,9 @@ func GetTokenFromBasicAuth(request *http.Request) string {
 }
 
 // Query is the main API call method to start parsing Tsl queries
-func (tsl Tsl) Query(ctx echo.Context) error {
+func (proxyTsl ProxyTSL) Query(ctx echo.Context) error {
 
-	tsl.ReqCounter.Inc()
+	proxyTsl.ReqCounter.Inc()
 
 	// Get Header line Value to set from which line query error are count
 	lineHeader := ctx.Request().Header.Get(lineStartHeader)
@@ -70,8 +71,8 @@ func (tsl Tsl) Query(ctx echo.Context) error {
 		var err error
 		lineStart, err = strconv.Atoi(lineHeader)
 		if err != nil {
-			tsl.WarnCounter.Inc()
-			return ctx.JSON(http.StatusBadRequest, NewError(errors.New("unvalid header "+lineStartHeader+", expects an integer number")))
+			proxyTsl.WarnCounter.Inc()
+			return ctx.JSON(http.StatusBadRequest, tsl.NewError(errors.New("unvalid header "+lineStartHeader+", expects an integer number")))
 		}
 	}
 
@@ -79,8 +80,8 @@ func (tsl Tsl) Query(ctx echo.Context) error {
 	body, err := ioutil.ReadAll(ctx.Request().Body)
 
 	if err != nil {
-		tsl.WarnCounter.Inc()
-		return ctx.JSON(http.StatusBadRequest, NewError(err))
+		proxyTsl.WarnCounter.Inc()
+		return ctx.JSON(http.StatusBadRequest, tsl.NewError(err))
 	}
 
 	// Get Body as logger.info
@@ -91,30 +92,48 @@ func (tsl Tsl) Query(ctx echo.Context) error {
 	tokenString := GetTokenFromBasicAuth(ctx.Request())
 
 	// Get query parsing result
-	parser, err := NewParser(strings.NewReader(string(body)), backendURL, tokenString, lineStart, queryRange, samplersCount)
+	parser, err := tsl.NewParser(strings.NewReader(string(body)), backendURL, tokenString, lineStart, queryRange, samplersCount)
 	if err != nil {
-		tsl.WarnCounter.Inc()
-		return ctx.JSON(http.StatusBadRequest, NewError(err))
+		proxyTsl.WarnCounter.Inc()
+		return ctx.JSON(http.StatusBadRequest, tsl.NewError(err))
 	}
 
 	query, err := parser.Parse()
 
 	if err != nil {
-		tsl.WarnCounter.Inc()
-		return ctx.JSON(http.StatusBadRequest, NewError(err))
+		proxyTsl.WarnCounter.Inc()
+		return ctx.JSON(http.StatusBadRequest, tsl.NewError(err))
 	}
 
 	// Get pivot format info
 	log.Debug(query.String())
 
+	// Only warp and Prom checks for no-backend queries
+	onlyWarp := true
+	onlyProm := true
+
 	// Create an instructions map per different back-end to call
-	instructionsPerAPI := map[string][]Instruction{}
+	instructionsPerAPI := map[string][]tsl.Instruction{}
+
 	for _, instruction := range query.Statements {
-		if instructionSet, ok := instructionsPerAPI[instruction.connectStatement.api]; ok {
+
+		// Checks mixed backend in instruction
+		if !(instruction.GetConnectType() == tsl.WARP.String() || instruction.GetConnectType() == "") {
+			onlyWarp = false
+		}
+
+		// Checks mixed backend in instruction
+		if !(instruction.GetConnectType() == tsl.PROMETHEUS.String() ||
+			instruction.GetConnectType() == tsl.PROM.String() ||
+			instruction.GetConnectType() == "") {
+			onlyProm = false
+		}
+
+		if instructionSet, ok := instructionsPerAPI[instruction.GetConnectAPI()]; ok {
 			instructionSet = append(instructionSet, *instruction)
-			instructionsPerAPI[instruction.connectStatement.api] = instructionSet
+			instructionsPerAPI[instruction.GetConnectAPI()] = instructionSet
 		} else {
-			instructionsPerAPI[instruction.connectStatement.api] = []Instruction{*instruction}
+			instructionsPerAPI[instruction.GetConnectAPI()] = []tsl.Instruction{*instruction}
 		}
 	}
 
@@ -129,6 +148,27 @@ func (tsl Tsl) Query(ctx echo.Context) error {
 
 	allowAuthenticate := viper.GetBool("tsl.warp10.authenticate")
 
+	// Generate WarpScript when calling Warp10 no-backend
+	if viper.GetBool("no-backend") {
+
+		proto := ""
+		if onlyWarp {
+			proto = tsl.WARP.String()
+		} else if onlyProm {
+			proto = tsl.PROMETHEUS.String()
+		}
+
+		nativeRes, err := GenerateNativeQueries(proto, string(body), tokenString, allowAuthenticate)
+
+		if err != nil {
+			proxyTsl.WarnCounter.Inc()
+			return ctx.JSON(http.StatusBadRequest, err)
+		}
+
+		return ctx.String(http.StatusOK, nativeRes)
+	}
+
+	// Execute all Warp Requests
 	for _, warp := range warpEndpoints {
 
 		if instructions, ok := instructionsPerAPI[warp]; ok {
@@ -136,8 +176,8 @@ func (tsl Tsl) Query(ctx echo.Context) error {
 			res, err := warpQuery(instructions, warp, ctx, lineStart, allowAuthenticate)
 
 			if err != nil {
-				tsl.ErrCounter.Inc()
-				tsl.WarnCounter.Inc()
+				proxyTsl.ErrCounter.Inc()
+				proxyTsl.WarnCounter.Inc()
 				return err
 			}
 			buffer.WriteString(res)
@@ -155,8 +195,8 @@ func (tsl Tsl) Query(ctx echo.Context) error {
 			res, err := promQuery(instructions, prom, ctx, now, lineStart)
 
 			if err != nil {
-				tsl.ErrCounter.Inc()
-				tsl.WarnCounter.Inc()
+				proxyTsl.ErrCounter.Inc()
+				proxyTsl.WarnCounter.Inc()
 				return err
 			}
 			buffer.WriteString(res)
@@ -172,23 +212,141 @@ func (tsl Tsl) Query(ctx echo.Context) error {
 	return ctx.String(http.StatusOK, buffer.String())
 }
 
+// GenerateNativeQueries Generate a TSL query in its native proto format
+// allowAuthenticate works only for a Warp 10 backend (force a Token authenticate to raise native limits)
+func GenerateNativeQueries(proto string, tslQuery string, defaultToken string, allowAuthenticate bool) (string, error) {
+	switch proto {
+	case tsl.WARP.String():
+		return tslToWarpScript(tslQuery, defaultToken, allowAuthenticate)
+	case tsl.PROMETHEUS.String(), tsl.PROM.String():
+		return tslToPromQL(tslQuery, defaultToken)
+	}
+	return "", tsl.NewError(errors.New("The specified backend is not support. No-backend doesn't support mixed backend queries"))
+}
+
+// tslToWarpScript method to generate WarpScript from TSL statements
+func tslToWarpScript(tslQuery string, defaulToken string, allowAuthenticate bool) (string, error) {
+
+	// Get query parsing result
+	parser, err := tsl.NewParser(strings.NewReader(tslQuery), "warp", defaulToken, 0, "", "")
+	if err != nil {
+		return "", err
+	}
+
+	query, err := parser.Parse()
+	if err != nil {
+		return "", err
+	}
+
+	// Output query buffer
+	var buffer bytes.Buffer
+
+	instructions := []tsl.Instruction{}
+
+	for _, instruction := range query.Statements {
+		instructions = append(instructions, *instruction)
+	}
+
+	protoParser := tsl.ProtoParser{Name: "warp 10", LineStart: 0}
+	warpscript, err := protoParser.GenerateWarpScript(instructions, allowAuthenticate)
+	if err != nil {
+		return "", err
+	}
+
+	buffer.WriteString(warpscript)
+	buffer.WriteString("\n")
+	// By default return an empty array
+	if buffer.String() == "" {
+		buffer.WriteString("[]")
+	}
+
+	return buffer.String(), nil
+}
+
+// toPromQL method to generate promQl queries from TSL statements
+func tslToPromQL(tslQuery string, token string) (string, error) {
+
+	// Get query parsing result
+	parser, err := tsl.NewParser(strings.NewReader(tslQuery), "warp", token, 0, "", "")
+	if err != nil {
+		return "", err
+	}
+
+	query, err := parser.Parse()
+	if err != nil {
+		return "", err
+	}
+
+	// Output query buffer
+	var buffer bytes.Buffer
+
+	instructions := []tsl.Instruction{}
+
+	for _, instruction := range query.Statements {
+		instructions = append(instructions, *instruction)
+	}
+
+	promRequests := make([]*tsl.Ql, len(instructions))
+	for index, instruction := range instructions {
+
+		log.Debug(instruction)
+		protoParser := tsl.ProtoParser{Name: "prometheus", LineStart: 0}
+		promQl, err := protoParser.GeneratePromQl(instruction, time.Now().UTC())
+		if err != nil {
+			return "", err
+		}
+
+		promQl.API = instruction.GetConnectAPI()
+
+		promRequests[index] = promQl
+	}
+
+	for _, promQl := range promRequests {
+
+		if promQl.Query != "" {
+			log.Debug(promQl)
+			queryType := "query_range"
+
+			if promQl.InstantQuery {
+				queryType = "query"
+			}
+
+			buffer.WriteString(fmt.Sprintf("%s/api/v1/%s?query=%s&start=%s&end=%s&step=%s",
+				promQl.API,
+				queryType,
+				url.QueryEscape(promQl.Query),
+				url.QueryEscape(promQl.Start),
+				url.QueryEscape(promQl.End),
+				url.QueryEscape(promQl.Step)))
+			buffer.WriteString("\n")
+		}
+	}
+
+	// By default return an empty array
+	if buffer.String() == "" {
+		buffer.WriteString("[]")
+	}
+
+	return buffer.String(), nil
+}
+
 // Execute all Prom requests on a prometheus backend
-func promQuery(instructions []Instruction, prom string, ctx echo.Context, now time.Time, lineStart int) (string, error) {
+func promQuery(instructions []tsl.Instruction, prom string, ctx echo.Context, now time.Time, lineStart int) (string, error) {
 
 	var buffer bytes.Buffer
 
 	buffer.WriteString("[")
 
 	prefix := ""
-	promRequests := make([]*Ql, len(instructions))
+	promRequests := make([]*tsl.Ql, len(instructions))
 	for index, instruction := range instructions {
 
 		log.Debug(instruction)
-		protoParser := ProtoParser{name: "prometheus", lineStart: lineStart}
+		protoParser := tsl.ProtoParser{Name: "prometheus", LineStart: lineStart}
 		promQl, err := protoParser.GeneratePromQl(instruction, now)
 		if err != nil {
 			log.WithError(err).Error("Could not generate PromQL")
-			return "", ctx.JSON(http.StatusMethodNotAllowed, NewError(err))
+			return "", ctx.JSON(http.StatusMethodNotAllowed, tsl.NewError(err))
 		}
 
 		promRequests[index] = promQl
@@ -200,7 +358,7 @@ func promQuery(instructions []Instruction, prom string, ctx echo.Context, now ti
 			log.Debug(promQl)
 			body, err := execProm(promQl, ctx, prom)
 			if err != nil {
-				return "", ctx.JSON(http.StatusInternalServerError, NewError(err))
+				return "", ctx.JSON(http.StatusInternalServerError, tsl.NewError(err))
 			}
 			buffer.WriteString(body)
 			buffer.WriteString("\n")
@@ -213,12 +371,12 @@ func promQuery(instructions []Instruction, prom string, ctx echo.Context, now ti
 }
 
 // Execute a Warp 10 request
-func warpQuery(instructions []Instruction, warp string, ctx echo.Context, lineStart int, allowAuthenticate bool) (string, error) {
+func warpQuery(instructions []tsl.Instruction, warp string, ctx echo.Context, lineStart int, allowAuthenticate bool) (string, error) {
 
-	protoParser := ProtoParser{name: "warp 10", lineStart: lineStart}
+	protoParser := tsl.ProtoParser{Name: "warp 10", LineStart: lineStart}
 	warpscript, err := protoParser.GenerateWarpScript(instructions, allowAuthenticate)
 	if err != nil {
-		return "", ctx.JSON(http.StatusBadRequest, NewError(err))
+		return "", ctx.JSON(http.StatusBadRequest, tsl.NewError(err))
 	}
 	log.Debug(warpscript)
 	req := &Request{}
@@ -226,7 +384,7 @@ func warpQuery(instructions []Instruction, warp string, ctx echo.Context, lineSt
 	res, err := exec(req, warp, ctx)
 	if err != nil {
 		log.WithError(err).Error("Could not execute WarpScript")
-		return "", ctx.JSON(http.StatusInternalServerError, NewError(err))
+		return "", ctx.JSON(http.StatusInternalServerError, tsl.NewError(err))
 	}
 	return res, nil
 }
@@ -261,7 +419,7 @@ func exec(req *Request, warp string, ctx echo.Context) (string, error) {
 }
 
 // Execute PromQL on prometheus metrics backend
-func execProm(req *Ql, ctx echo.Context, prom string) (string, error) {
+func execProm(req *tsl.Ql, ctx echo.Context, prom string) (string, error) {
 
 	queryType := "query_range"
 

@@ -33,7 +33,7 @@ func (e *Error) Error() string {
 
 // NewProtoError create an error related to the proto
 func (p *ProtoParser) NewProtoError(message string, pos Pos) *Error {
-	errorMessage := fmt.Sprintf("Cannot execute query on %s back-end: %s at line %d, char %d", p.name, message, pos.Line+1-p.lineStart, pos.Char+1)
+	errorMessage := fmt.Sprintf("Cannot execute query on %s back-end: %s at line %d, char %d", p.Name, message, pos.Line+1-p.LineStart, pos.Char+1)
 	return &Error{
 		Message: errorMessage,
 	}
