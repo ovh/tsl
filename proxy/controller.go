@@ -158,7 +158,8 @@ func (proxyTsl ProxyTSL) Query(ctx echo.Context) error {
 			proto = tsl.PROMETHEUS.String()
 		}
 
-		nativeRes, err := GenerateNativeQueries(proto, string(body), tokenString, allowAuthenticate)
+		params := map[string]string{lineStartHeader: fmt.Sprintf("%v", lineStart), queryRandeHeader: queryRange, samplersCountHeader: samplersCount}
+		nativeRes, err := GenerateNativeQueriesWithParams(proto, string(body), tokenString, allowAuthenticate, params)
 
 		if err != nil {
 			proxyTsl.WarnCounter.Inc()
@@ -217,18 +218,49 @@ func (proxyTsl ProxyTSL) Query(ctx echo.Context) error {
 func GenerateNativeQueries(proto string, tslQuery string, defaultToken string, allowAuthenticate bool) (string, error) {
 	switch proto {
 	case tsl.WARP.String():
-		return tslToWarpScript(tslQuery, defaultToken, allowAuthenticate)
+		return tslToWarpScript(tslQuery, defaultToken, allowAuthenticate, map[string]string{})
 	case tsl.PROMETHEUS.String(), tsl.PROM.String():
-		return tslToPromQL(tslQuery, defaultToken)
+		return tslToPromQL(tslQuery, defaultToken, map[string]string{})
+	}
+	return "", tsl.NewError(errors.New("The specified backend is not support. No-backend doesn't support mixed backend queries"))
+}
+
+// GenerateNativeQueriesWithParams Generate a TSL query in its native proto format with a param map replacing query headers
+// allowAuthenticate works only for a Warp 10 backend (force a Token authenticate to raise native limits)
+func GenerateNativeQueriesWithParams(proto string, tslQuery string, defaultToken string, allowAuthenticate bool, params map[string]string) (string, error) {
+	switch proto {
+	case tsl.WARP.String():
+		return tslToWarpScript(tslQuery, defaultToken, allowAuthenticate, params)
+	case tsl.PROMETHEUS.String(), tsl.PROM.String():
+		return tslToPromQL(tslQuery, defaultToken, params)
 	}
 	return "", tsl.NewError(errors.New("The specified backend is not support. No-backend doesn't support mixed backend queries"))
 }
 
 // tslToWarpScript method to generate WarpScript from TSL statements
-func tslToWarpScript(tslQuery string, defaulToken string, allowAuthenticate bool) (string, error) {
+func tslToWarpScript(tslQuery string, defaulToken string, allowAuthenticate bool, params map[string]string) (string, error) {
+	// Load parsing data
+	lineCount, contains := params[lineStartHeader]
+	if !contains {
+		lineCount = "0"
+	}
+	lineCountInt, err := strconv.Atoi(lineCount)
+	if err != nil {
+		return "", err
+	}
+
+	queryRange, contains := params[queryRandeHeader]
+	if !contains {
+		queryRange = ""
+	}
+
+	samplersCount, contains := params[samplersCountHeader]
+	if !contains {
+		samplersCount = ""
+	}
 
 	// Get query parsing result
-	parser, err := tsl.NewParser(strings.NewReader(tslQuery), "warp", defaulToken, 0, "", "")
+	parser, err := tsl.NewParser(strings.NewReader(tslQuery), "warp", defaulToken, lineCountInt, queryRange, samplersCount)
 	if err != nil {
 		return "", err
 	}
@@ -264,14 +296,35 @@ func tslToWarpScript(tslQuery string, defaulToken string, allowAuthenticate bool
 }
 
 // toPromQL method to generate promQl queries from TSL statements
-func tslToPromQL(tslQuery string, token string) (string, error) {
+func tslToPromQL(tslQuery string, token string, params map[string]string) (string, error) {
 
-	// Get query parsing result
-	parser, err := tsl.NewParser(strings.NewReader(tslQuery), "warp", token, 0, "", "")
+	// Load parsing data
+	lineCount, contains := params[lineStartHeader]
+	if !contains {
+		lineCount = "0"
+	}
+	lineCountInt, err := strconv.Atoi(lineCount)
 	if err != nil {
 		return "", err
 	}
 
+	queryRange, contains := params[queryRandeHeader]
+	if !contains {
+		queryRange = ""
+	}
+
+	samplersCount, contains := params[samplersCountHeader]
+	if !contains {
+		samplersCount = ""
+	}
+
+	// Generate parser
+	parser, err := tsl.NewParser(strings.NewReader(tslQuery), "warp", token, lineCountInt, queryRange, samplersCount)
+	if err != nil {
+		return "", err
+	}
+
+	// Get query parsing result
 	query, err := parser.Parse()
 	if err != nil {
 		return "", err
