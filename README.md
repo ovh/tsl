@@ -129,6 +129,27 @@ Flags:
 Use "tsl [command] --help" for more information about a command.
 ```
 
+## Use TSL with WebAssembly
+
+NOTE: A Go 1.11 version at least is needed.
+
+You can run the TSL to WarpScript interpreter in a WebAssembly program.
+The `tsl.wasm` file export the method `tslToWarpScript` callable from JavaScript running in a browser or NodeJS.
+
+To compile the `tsl` package for the web:
+
+`$ make wasm`
+
+As example, you can call the `tslToWarpScript` from a JavaScript program like that:
+
+```javascript
+tslToWarpScript("select(\"sys.cpu.nice\").where(\"host=web01\").from(1346846400000,to=1346847000005)", "", false, (err, res) => {
+	console.log(res) // Output the tsl query in a WarpScript syntax
+})
+```
+
+To integrate the `tsl.wasm` file in your program, you should follow the Golang WebAssembly [wiki](https://github.com/golang/go/wiki/WebAssembly).
+
 ## Licensing
 
 See the LICENSE file.
