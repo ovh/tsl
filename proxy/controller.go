@@ -91,6 +91,15 @@ func (proxyTsl ProxyTSL) Query(ctx echo.Context) error {
 	backendURL := viper.GetString("tsl.default.endpoint")
 	tokenString := GetTokenFromBasicAuth(ctx.Request())
 
+	if viper.GetString("tsl.default.type") == "prometheus" {
+		s := strings.SplitN(ctx.Request().Header.Get("Authorization"), " ", 2)
+		if len(s) != 2 {
+			tokenString = ""
+		} else {
+			tokenString = s[1]
+		}
+	}
+
 	// Get query parsing result
 	parser, err := tsl.NewParser(strings.NewReader(string(body)), backendURL, tokenString, lineStart, queryRange, samplersCount)
 	if err != nil {
@@ -116,7 +125,6 @@ func (proxyTsl ProxyTSL) Query(ctx echo.Context) error {
 	instructionsPerAPI := map[string][]tsl.Instruction{}
 
 	for _, instruction := range query.Statements {
-
 		// Checks mixed backend in instruction
 		if !(instruction.GetConnectType() == tsl.WARP.String() || instruction.GetConnectType() == "") {
 			onlyWarp = false
@@ -152,7 +160,9 @@ func (proxyTsl ProxyTSL) Query(ctx echo.Context) error {
 	if viper.GetBool("no-backend") {
 
 		proto := ""
-		if onlyWarp {
+		if onlyWarp && onlyProm {
+			proto = viper.GetString("tsl.default.type")
+		} else if onlyWarp {
 			proto = tsl.WARP.String()
 		} else if onlyProm {
 			proto = tsl.PROMETHEUS.String()
@@ -364,8 +374,7 @@ func tslToPromQL(tslQuery string, token string, params map[string]string) (strin
 				queryType = "query"
 			}
 
-			buffer.WriteString(fmt.Sprintf("%s/api/v1/%s?query=%s&start=%s&end=%s&step=%s",
-				promQl.API,
+			buffer.WriteString(fmt.Sprintf("/api/v1/%s?query=%s&start=%s&end=%s&step=%s",
 				queryType,
 				url.QueryEscape(promQl.Query),
 				url.QueryEscape(promQl.Start),
