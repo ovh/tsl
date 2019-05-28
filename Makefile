@@ -8,6 +8,8 @@ DATE			:= $(shell TZ=UTC date -u '+%Y-%m-%dT%H:%M:%SZ UTC')
 DFLAGS		:= -race
 CFLAGS		:= -X 'github.com/ovh/tsl/cmd.githash=$(GITHASH)' -X 'github.com/ovh/tsl/cmd.date=$(DATE)' -X 'github.com/ovh/tsl/cmd.gitbranch=$(GITBRANCH)'
 CROSS			:= GOOS=linux GOARCH=amd64
+WASMFLAGS	:= GOOS=js GOARCH=wasm
+WASMEXEC	:= tsl.wasm
 
 FORMAT_PATHS	:= ./cmd/ ./middlewares/ ./tsl tsl.go
 LINT_PATHS		:= ./ ./cmd/... ./middlewares/... ./tsl/...
@@ -32,6 +34,7 @@ dep:
 clean:
 	rm -rf build
 	rm -rf vendor
+	rm -f *.wasm
 
 .PHONY: lint
 lint:
@@ -53,6 +56,10 @@ dev: format lint build
 .PHONY: build
 build: tsl.go $$(call rwildcard, ./cmd, *.go) $$(call rwildcard, ./core, *.go) $$(call rwildcard, ./tsl, *.go) $$(call rwildcard, ./middlewares, *.go)
 	$(CC) $(DFLAGS) -ldflags "$(CFLAGS)" -o $(BUILD_DIR)/tsl tsl.go
+
+.PHONY: wasm
+wasm:
+	$(WASMFLAGS) $(CC) -o $(WASMEXEC) wasm.go
 
 .PHONY: release
 release: tsl.go $$(call rwildcard, ./cmd, *.go) $$(call rwildcard, ./core, *.go) $$(call rwildcard, ./tsl, *.go) $$(call rwildcard, ./middlewares, *.go)
