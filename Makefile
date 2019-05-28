@@ -59,7 +59,7 @@ build: tsl.go $$(call rwildcard, ./cmd, *.go) $$(call rwildcard, ./core, *.go) $
 
 .PHONY: wasm
 wasm:
-	$(WASMFLAGS) $(CC) -o $(WASMEXEC) wasm.go
+	$(WASMFLAGS) $(CC) -o $(WASMEXEC) wasm/wasm.go
 
 .PHONY: release
 release: tsl.go $$(call rwildcard, ./cmd, *.go) $$(call rwildcard, ./core, *.go) $$(call rwildcard, ./tsl, *.go) $$(call rwildcard, ./middlewares, *.go)
