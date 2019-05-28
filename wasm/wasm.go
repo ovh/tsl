@@ -6,21 +6,26 @@ package main
 //
 
 import (
-	"./tsl"
 	"bytes"
 	"strings"
+
 	"syscall/js"
+
+	"github.com/ovh/tsl/tsl"
 )
 
 // tslToWarpScriptWasm method to generate WarpScript from TSL statements in WASM and return result with a callback
 func tslToWarpScriptWasm(this js.Value, inputs []js.Value) interface{} {
 	tslQuery := inputs[0].String()
-	defaulToken := inputs[1].String()
+	defaultToken := inputs[1].String()
 	allowAuthenticate := inputs[2].Bool()
+	lineStart := inputs[3].Int()
+	defaultTimeRange := inputs[4].String()
+	defaultSamplers := inputs[5].String()
 	callback := inputs[len(inputs)-1:][0]
 
 	// Get query parsing result
-	parser, err := tsl.NewParser(strings.NewReader(tslQuery), "warp", defaulToken, 0, "", "")
+	parser, err := tsl.NewParser(strings.NewReader(tslQuery), "warp10", defaultToken, lineStart, defaultTimeRange, defaultSamplers)
 	if err != nil {
 		callback.Invoke(err.Error(), js.Null())
 		return nil
