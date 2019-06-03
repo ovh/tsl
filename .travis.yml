@@ -1,0 +1,21 @@
+language: go
+
+env:
+- WASMEXEC=build/tsl.wasm  
+
+go:
+- 1.11.x
+
+before_script:
+- mkdir build
+
+script:
+- make wasm
+
+# create npm package
+after_success:
+- cp wasm/index.js build
+- cp wasm/package.json build
+- cp $(go env GOROOT)/misc/wasm/wasm_exec.js build/wasm_exec.js
+# npm publish
+- ls build
