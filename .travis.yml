@@ -8,10 +8,16 @@ go:
 
 go_import_path: github.com/ovh/tsl
 
-before_script:
-- mkdir build
+install:
+# install nodejs to create the package
+- curl -sL https://deb.nodesource.com/setup_12.x | sudo -E bash -
+- sudo apt-get install -y nodejs
+# install godep
 - go get -u github.com/golang/dep/cmd/dep
 - make dep
+
+before_script:
+- mkdir build
 
 script:
 - make wasm
