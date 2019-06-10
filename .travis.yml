@@ -1,7 +1,7 @@
 language: go
 
 env:
-- WASMEXEC=build/tsl.wasm  
+- WASMEXEC=build/tsl.wasm
 
 go:
 - 1.12.x
@@ -24,8 +24,8 @@ script:
 
 # create npm package
 after_success:
+- cp tsl.wasm build
 - cp wasm/index.js build
 - cp wasm/package.json build
 - cp $(go env GOROOT)/misc/wasm/wasm_exec.js build/wasm_exec.js
-# npm publish
-- ls build
+# TODO: npm publish build dir steps
