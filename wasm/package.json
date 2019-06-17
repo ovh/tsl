@@ -1,6 +1,6 @@
 {
-  "name": "tsl",
-  "version": "0.0.1",
+  "name": "tsl-wasm",
+  "version": "<%version%>",
   "description": "Library to generate WarpScript or a PromQl script based on a TSL query",
   "main": "index.js",
   "scripts": {

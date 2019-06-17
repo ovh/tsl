@@ -27,5 +27,7 @@ after_success:
 - cp tsl.wasm build
 - cp wasm/index.js build
 - cp wasm/package.json build
+-  sed -i "s|<%version%>|$(build/tsl version -r)|g" build/package.json
+
 - cp $(go env GOROOT)/misc/wasm/wasm_exec.js build/wasm_exec.js
 # TODO: npm publish build dir steps
