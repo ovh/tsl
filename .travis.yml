@@ -1,0 +1,33 @@
+language: go
+
+env:
+- WASMEXEC=build/tsl.wasm
+
+go:
+- 1.12.x
+
+go_import_path: github.com/ovh/tsl
+
+install:
+# install nodejs to create the package
+- curl -sL https://deb.nodesource.com/setup_12.x | sudo -E bash -
+- sudo apt-get install -y nodejs
+# install godep
+- go get -u github.com/golang/dep/cmd/dep
+- make dep
+
+before_script:
+- mkdir build
+
+script:
+- make wasm
+
+# create npm package
+after_success:
+- cp tsl.wasm build
+- cp wasm/index.js build
+- cp wasm/package.json build
+-  sed -i "s|<%version%>|$(build/tsl version -r)|g" build/package.json
+
+- cp $(go env GOROOT)/misc/wasm/wasm_exec.js build/wasm_exec.js
+# TODO: npm publish build dir steps

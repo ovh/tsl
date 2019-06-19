@@ -1,0 +1,11 @@
+{
+  "name": "tsl-wasm",
+  "version": "<%version%>",
+  "description": "Library to generate WarpScript or a PromQl script based on a TSL query",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "Modified 3-Clause BSD"
+}
