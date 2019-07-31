@@ -19,7 +19,11 @@ To build and install Tsl you need:
 
    `make dep`
 
-3. Build TSL
+3. Local build of TSL
+
+   `make dev`
+
+3. Release build of TSL
 
    `make release`
 
