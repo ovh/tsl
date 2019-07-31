@@ -24,8 +24,6 @@ all: dep format lint release
 init:
 	curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 	go get -u github.com/golangci/golangci-lint/cmd/golangci-lint
-	golangci-lint --install --update
-
 .PHONY: dep
 dep:
 	dep ensure -v
