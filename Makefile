@@ -10,6 +10,8 @@ CFLAGS		:= -X 'github.com/ovh/tsl/cmd.githash=$(GITHASH)' -X 'github.com/ovh/tsl
 CROSS			:= GOOS=linux GOARCH=amd64
 WASMFLAGS	:= GOOS=js GOARCH=wasm
 WASMEXEC	:= tsl.wasm
+SOLIB	:= build/so/tsl.so
+SOFLAGS   := -buildmode=c-shared
 
 FORMAT_PATHS	:= ./cmd/ ./middlewares/ ./tsl tsl.go
 LINT_PATHS		:= ./ ./cmd/... ./middlewares/... ./tsl/...
@@ -58,6 +60,10 @@ build: tsl.go $$(call rwildcard, ./cmd, *.go) $$(call rwildcard, ./core, *.go) $
 .PHONY: wasm
 wasm:
 	$(WASMFLAGS) $(CC) -o $(WASMEXEC) wasm/wasm.go
+
+.PHONY: so
+so:
+	$(CC) $(SOFLAGS) -o $(SOLIB) so/libso.go 
 
 .PHONY: release
 release: tsl.go $$(call rwildcard, ./cmd, *.go) $$(call rwildcard, ./core, *.go) $$(call rwildcard, ./tsl, *.go) $$(call rwildcard, ./middlewares, *.go)
