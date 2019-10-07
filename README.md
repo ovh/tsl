@@ -154,6 +154,18 @@ tslToWarpScript("select(\"sys.cpu.nice\").where(\"host=web01\").from(13468464000
 
 To integrate the `tsl.wasm` file in your program, you should follow the Golang WebAssembly [wiki](https://github.com/golang/go/wiki/WebAssembly).
 
+## Build TSL .so file to use TSL in other language
+
+You can build TSL so library files, usable in other progamming language as describe in [this github tutorial](https://github.com/vladimirvivien/go-cshared-examples).
+
+To compile TSL .so libray simply run
+
+```sh
+make so
+```
+
+In the spec folder, you can find a JAVA example of the [.so TSL library](./spec/jna.md).
+
 ## Licensing
 
 See the LICENSE file.
