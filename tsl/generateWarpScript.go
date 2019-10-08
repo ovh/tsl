@@ -883,7 +883,9 @@ func (protoParser *ProtoParser) getMapper(framework FrameworkStatement, sampleSp
 			value = "-0" + strings.Trim(attribute.lit, "-")
 		} else {
 			value = attribute.lit
-			if attribute.tokenType == NUMBER && (framework.operator == ADDSERIES || framework.operator == SUBSERIES || framework.operator == MULSERIES || framework.operator == DIVSERIES) {
+
+			if (attribute.tokenType == NUMBER || attribute.tokenType == INTEGER) &&
+				(framework.operator == ADDSERIES || framework.operator == SUBSERIES || framework.operator == MULSERIES || framework.operator == DIVSERIES) {
 				value += " TODOUBLE "
 			}
 
