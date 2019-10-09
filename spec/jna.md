@@ -1,8 +1,9 @@
-# How to use the TSL library in JAVA
+
+## How to use the TSL library in JAVA
 
 The TSL .so library was build based on [this github tutorial](https://github.com/vladimirvivien/go-cshared-examples).
 
-## So library
+### So library
 
 First of all, you need to build TSL so library using:
 
@@ -10,7 +11,7 @@ First of all, you need to build TSL so library using:
 make so
 ```
 
-## The TSL exposed function
+### The TSL exposed function
 
 TSL exposes a single method (defined in [libso.go](../so/libso.go)): 
 
@@ -28,7 +29,7 @@ The TslToWarpScript method expects 6 parameters:
 
 TslToWarpScript will then returned the string corresponding to the generated WarpScript query produced by the user TSL query. 
 
-## Example use of TSL in JAVA
+### Example use of TSL in JAVA
 
 You can create a working TSL client class in JAVA as:
 
