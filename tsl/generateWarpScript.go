@@ -289,6 +289,14 @@ func (protoParser *ProtoParser) getFrameworksOp(selectStatement SelectStatement,
 			buffer.WriteString(filter)
 			buffer.WriteString("\n")
 
+		case FILTERWITHOUTLABELS:
+			filter, err := protoParser.filterWithoutLabelsWarpScript(framework)
+			if err != nil {
+				return "", err
+			}
+			buffer.WriteString(filter)
+			buffer.WriteString("\n")
+
 		case ADDNAMESUFFIX:
 			framework.operator = RENAME
 
@@ -1118,6 +1126,39 @@ func (protoParser *ProtoParser) operators(framework FrameworkStatement) string {
 	}
 
 	return value + operatorString
+}
+
+func (protoParser *ProtoParser) filterWithoutLabelsWarpScript(framework FrameworkStatement) (string, error) {
+
+	var buffer bytes.Buffer
+
+	buffer.WriteString(`
+	<% 
+	DUP
+	
+	0 GET
+	
+	SWAP FILTER
+  
+	->SET
+  
+	SWAP ->SET
+  
+	SWAP 2 DUPN DIFFERENCE
+  
+	SET-> SWAP SET->
+  
+	ROT DROP
+  %>
+  'neg-filter' CSTORE
+`)
+
+	for _, labelKey := range framework.unNamedAttributes {
+		buffer.WriteString(fmt.Sprintf("[ SWAP [] { '%s' '~.*' } filter.bylabels ] @neg-filter\n", labelKey.lit))
+		buffer.WriteString(" DROP \n")
+	}
+
+	return buffer.String(), nil
 }
 
 // operators generate WarpScript line for an individual statement
