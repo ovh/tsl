@@ -703,6 +703,12 @@ In TSL, we can directly use the Connect method to update the set the backend on 
 connect("warp10","http://localhost:9090", "TOKEN")
 ```
 
+or when no Token is needed:
+
+```
+connect("warp10","http://localhost:9090")
+```
+
 For a prometheus it's
 ```
 connect("prometheus","http://localhost:9090")

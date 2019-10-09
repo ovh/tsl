@@ -856,11 +856,15 @@ func (p *Parser) parseConnect(tok Token, pos Pos, lit string, instruction *Instr
 
 	if instruction.connectStatement.connectType == WARP.String() {
 
-		if len(fields) != 3 {
+		intToken := ""
+
+		if len(fields) == 3 {
+			intToken = fields[2].lit
+		} else if len(fields) < 2 || len(fields) > 3 {
 			return nil, p.NewTslError("error", pos)
 		}
 		instruction.connectStatement.api = fields[1].lit
-		instruction.connectStatement.token = fields[2].lit
+		instruction.connectStatement.token = intToken
 	}
 
 	if instruction.connectStatement.connectType == PROM.String() || instruction.connectStatement.connectType == PROMETHEUS.String() {
