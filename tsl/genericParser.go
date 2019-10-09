@@ -737,7 +737,7 @@ loop:
 				return nil, err
 			}
 
-		case REMOVELABELS, FILTERBYLABELS:
+		case REMOVELABELS, FILTERBYLABELS, FILTERWITHOUTLABELS:
 			instruction, err = p.parseNStringOperator(tok, pos, lit, -1, instruction)
 
 			if err != nil {

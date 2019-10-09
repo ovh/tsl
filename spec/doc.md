@@ -518,6 +518,7 @@ TSL includes a few methods to filter the metrics result set:
 * The **filterByLabels** method to keep only the metrics matching some labels rules defined as parameters. **filterByLabels** expects at least one label clause string, and optionally as many as needed. Use example: _.filterByLabels("label~42.*", "host=server-01")._
 * The **filterByName** method to keep only the metrics matching a name rule defined as parameters. **filterByName** expects a single string rule. Use example: _.filterByName("test")_, _.filterByName("~test")_
 * The **filterByLastValue** method to keep only the metrics matching a rule on their last value defined as parameters. **filterByLastValue** expects at least one string rule, and optionally as many as needed. Use example: _.filterByLastValue(">=42")_, _.filterByName("!='mystring'")_. The valid **filterByLastValue** parameters are **<=**, **<**, **!=**, **=**, **>=** and **>**.
+* The **filterWithoutLabels** method to keep only with metrics without the labels keys specified as parameters. Use example: _.filterWithoutLabels("label", "host")._
 
 ### Metrics operators on metrics sets
 
