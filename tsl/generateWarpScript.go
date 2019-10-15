@@ -103,7 +103,7 @@ func (protoParser *ProtoParser) processWarpScriptInstruction(instruction Instruc
 	var buffer bytes.Buffer
 
 	// As Meta is a single instruction test it first and propagate result
-	if instruction.isMeta {
+	if instruction.isMeta && !(instruction.hasSelect && instruction.selectStatement.isPop) {
 		val, err := protoParser.getMeta(instruction.selectStatement, instruction.connectStatement.token)
 		if err != nil {
 			return "", err
@@ -123,12 +123,17 @@ func (protoParser *ProtoParser) processWarpScriptInstruction(instruction Instruc
 			buffer.WriteString(create)
 
 		} else {
-			fetch, err := protoParser.getFetch(instruction.selectStatement, instruction.connectStatement.token, prefix)
-			if err != nil {
-				return "", nil
-			}
 
-			buffer.WriteString(fetch)
+			if instruction.selectStatement.isPop {
+				buffer.WriteString("")
+			} else {
+				fetch, err := protoParser.getFetch(instruction.selectStatement, instruction.connectStatement.token, prefix)
+				if err != nil {
+					return "", nil
+				}
+
+				buffer.WriteString(fetch)
+			}
 		}
 		buffer.WriteString("\n")
 
@@ -214,6 +219,7 @@ func (protoParser *ProtoParser) writeGlobalOperators(gOp GlobalOperator, prefix 
 	buffer.WriteString("] \n")
 	buffer.WriteString(prefix)
 	buffer.WriteString("APPLY \n")
+
 	op, err := protoParser.getFrameworksOp(selectStatement, prefix)
 
 	if err != nil {
@@ -247,6 +253,21 @@ func (protoParser *ProtoParser) getFrameworksOp(selectStatement SelectStatement,
 			ROUND, SQRT, SUM, TIMESTAMP, WEEKDAY, YEAR, JOIN, PERCENTILE, CUMULATIVE, WINDOW, FINITE, TOBOOLEAN, TODOUBLE, TOLONG, TOSTRING:
 
 			buffer.WriteString(protoParser.getMapper(framework, sampleSpan))
+			buffer.WriteString("\n")
+
+		case POPVAR:
+			pop, err := protoParser.popVariableCall(framework, prefix)
+			if err != nil {
+				return "", err
+			}
+			buffer.WriteString(pop)
+			buffer.WriteString("\n")
+		case POP:
+			pop, err := protoParser.popVariable(framework, prefix)
+			if err != nil {
+				return "", err
+			}
+			buffer.WriteString(pop)
 			buffer.WriteString("\n")
 
 		case QUANTIZE:
@@ -936,6 +957,34 @@ func (protoParser *ProtoParser) getMapper(framework FrameworkStatement, sampleSp
 	}
 
 	return fmt.Sprintf("[ SWAP " + value + mapper + " " + pre + " " + post + " " + occurrences + " ] MAP ")
+}
+
+// popVariable generate WarpScript line for a pop (in a Variable) statement
+func (protoParser *ProtoParser) popVariableCall(framework FrameworkStatement, prefix string) (string, error) {
+	var buffer bytes.Buffer
+
+	if len(framework.unNamedAttributes) != 1 {
+		errMessage := fmt.Sprintf("Unexpected error in function pop")
+		return "", protoParser.NewProtoError(errMessage, framework.pos)
+	}
+
+	buffer.WriteString("$" + framework.unNamedAttributes[0].lit + "\n")
+
+	return buffer.String(), nil
+}
+
+// popVariable generate WarpScript line for a pop (in a Variable) statement
+func (protoParser *ProtoParser) popVariable(framework FrameworkStatement, prefix string) (string, error) {
+	var buffer bytes.Buffer
+
+	if len(framework.unNamedAttributes) != 1 {
+		errMessage := fmt.Sprintf("Unexpected error in function pop")
+		return "", protoParser.NewProtoError(errMessage, framework.pos)
+	}
+
+	buffer.WriteString("'" + framework.unNamedAttributes[0].lit + "' STORE\n")
+
+	return buffer.String(), nil
 }
 
 // quantize generate WarpScript line for a quantize statement

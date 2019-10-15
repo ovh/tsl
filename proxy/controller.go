@@ -345,11 +345,24 @@ func tslToPromQL(tslQuery string, token string, params map[string]string) (strin
 
 	instructions := []tsl.Instruction{}
 
-	for _, instruction := range query.Statements {
+	for index, instruction := range query.Statements {
+
+		if instruction.GetSelectStatement().IsPopStatement() {
+			continue
+		}
+		if index < len(query.Statements) {
+			nextInstruction := query.Statements[index+1]
+
+			if nextInstruction.GetSelectStatement().IsPopStatement() {
+				instruction.GetSelectStatement().MergeFrameworkStatement(nextInstruction.GetSelectStatement())
+			}
+		}
+
 		instructions = append(instructions, *instruction)
 	}
 
 	promRequests := make([]*tsl.Ql, len(instructions))
+
 	for index, instruction := range instructions {
 
 		log.Debug(instruction)
@@ -400,8 +413,28 @@ func promQuery(instructions []tsl.Instruction, prom string, ctx echo.Context, no
 	buffer.WriteString("[")
 
 	prefix := ""
-	promRequests := make([]*tsl.Ql, len(instructions))
+
+	mergedInstruction := []tsl.Instruction{}
+
 	for index, instruction := range instructions {
+
+		if instruction.GetSelectStatement().IsPopStatement() {
+			continue
+		}
+		if index < len(instructions) {
+			nextInstruction := instructions[index+1]
+
+			if nextInstruction.GetSelectStatement().IsPopStatement() {
+				instruction.GetSelectStatement().MergeFrameworkStatement(nextInstruction.GetSelectStatement())
+			}
+		}
+
+		mergedInstruction = append(mergedInstruction, instruction)
+	}
+
+	promRequests := make([]*tsl.Ql, len(mergedInstruction))
+
+	for index, instruction := range mergedInstruction {
 
 		log.Debug(instruction)
 		protoParser := tsl.ProtoParser{Name: "prometheus", LineStart: lineStart}

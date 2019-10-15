@@ -36,6 +36,7 @@ const (
 	DIV                    //
 	GTSLIST                // Internal GTS list type
 	MULTIPLESERIESOPERATOR // Internal GTS list type
+	POPVAR                 // Internal POP variable call
 	//literalEnd
 
 	LPAREN       // (
@@ -118,6 +119,7 @@ const (
 	ON
 	ORL
 	PERCENTILE
+	POP
 	PROM
 	PROMETHEUS
 	QUANTIZE
@@ -264,6 +266,7 @@ var tokens = [...]string{
 	ON:                  "on",
 	ORL:                 "or",
 	PERCENTILE:          "percentile",
+	POP:                 "pop",
 	PROM:                "prom",
 	PROMETHEUS:          "prometheus",
 	QUANTIZE:            "quantize",

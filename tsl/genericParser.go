@@ -215,7 +215,24 @@ loop:
 				return nil, nil, err
 			}
 			break loop
+		case POP:
+			// Parse pop skip
+			instruction, err = p.parsePop(tok, pos, lit, instruction)
 
+			if err != nil {
+				return nil, nil, err
+			}
+
+			// Set has select instruction
+			instruction.hasSelect = true
+
+			// Parse post select methods
+			instruction, err = p.parseTimesSeriesOperators(instruction, internCall)
+
+			if err != nil {
+				return nil, nil, err
+			}
+			break loop
 		case SELECT:
 
 			// Parse select intern attributes
@@ -310,10 +327,22 @@ loop:
 
 			nexTok, nextPos, nextLit := p.ScanIgnoreWhitespace()
 			p.variables[lit], err = p.parseVariableDec(nexTok, nextPos, nextLit, lit)
-
 			if err != nil {
 				return nil, nil, err
 			}
+
+			if p.variables[lit].tokenType == POP {
+				popOp := &FrameworkStatement{
+					pos:               pos,
+					operator:          POP,
+					attributes:        make(map[PrefixAttributes]InternalField),
+					unNamedAttributes: map[int]InternalField{0: {tokenType: STRING, lit: lit}}}
+
+				instruction.selectStatement.frameworks = append(instruction.selectStatement.frameworks, *popOp)
+				instruction.hasSelect = true
+				instruction.selectStatement.isPop = true
+			}
+
 			break loop
 
 		// Stay in instruction as long as the next word start with a DOT (ignore commentary)
@@ -359,6 +388,31 @@ func (p *Parser) parsePostVariables(pos Pos, lit string, connectStatement Connec
 	internalInstruction = setConnectCall(internalInstruction, connectStatement)
 
 	switch variable.tokenType {
+
+	case POP:
+		// Parse post GTSLIST methods
+
+		nexTok, _, _ := p.ScanIgnoreWhitespace()
+		p.Unscan()
+
+		popOp := &FrameworkStatement{
+			pos:               pos,
+			operator:          POPVAR,
+			attributes:        make(map[PrefixAttributes]InternalField),
+			unNamedAttributes: map[int]InternalField{0: {tokenType: STRING, lit: lit}}}
+
+		internalInstruction.selectStatement.frameworks = append([]FrameworkStatement{*popOp}, internalInstruction.selectStatement.frameworks...)
+		internalInstruction.hasSelect = true
+		internalInstruction.selectStatement.isPop = true
+
+		if nexTok == DOT {
+			internalInstruction, err = p.parseTimesSeriesOperators(internalInstruction, internCall)
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
 	case SELECT:
 
 		// Parse post select methods
@@ -451,10 +505,11 @@ func (p *Parser) parseVariableDec(tok Token, pos Pos, lit string, name string) (
 		if err != nil {
 			return nil, err
 		}
-
 		if internalInstruction.hasSelect {
 
-			if len(internalInstruction.selectStatement.frameworks) > 0 {
+			if internalInstruction.selectStatement.isPop {
+				variable.tokenType = POP
+			} else if len(internalInstruction.selectStatement.frameworks) > 0 {
 				variable.tokenType = GTSLIST
 			} else {
 				variable.tokenType = SELECT
@@ -1099,6 +1154,27 @@ func (p *Parser) parseCreateSetLabels(tok Token, pos Pos, lit string, instructio
 
 	createSeries.where = append(createSeries.where, instruction.selectStatement.where...)
 	return instruction, createSeries, nil
+}
+
+// Pop TSL method parser
+func (p *Parser) parsePop(tok Token, pos Pos, lit string, instruction *Instruction) (*Instruction, error) {
+	popFields := map[int][]InternalField{}
+
+	// Instantiate the SELECT struct as select can be set only once
+	selectStatement := &SelectStatement{metric: "select", attributePolicy: Merge}
+	selectStatement.pos = pos
+	selectStatement.frameworks = make([]FrameworkStatement, 0)
+	selectStatement.isPop = true
+
+	// Next load all select fields, limit to 1
+	_, err := p.ParseFields(SELECT.String(), popFields, 0)
+
+	if err != nil {
+		return nil, err
+	}
+
+	instruction.selectStatement = *selectStatement
+	return instruction, nil
 }
 
 // Select TSL method parser

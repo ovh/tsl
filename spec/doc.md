@@ -773,6 +773,41 @@ This can be done using the **store** method. Store expects a token as unique par
 
 To resets counters values the method **resets** can be applied in TSL. Use example:  _.resets("host")._
 
+#### The pop method
+
+This method is reserved for power user on the **Warp 10** who would like to use TSL in WarpScript (will work also only in tsl). 
+This function is used to re-use a time series list that would be on top of the stack. 
+
+For example:
+
+```tsl
+create(series("test").setLabels(["l0=42","l1=42"]).setValues("now", [-5m, 2], [0, 1]).setValues("now",[2m, 3]),series("test2").setLabels(["l0=42","l2=43"]).setValues("now", [-5m, 2], [0, 1]))
+   .filterWithoutLabels("l2", "l3")
+	 .sampleBy(30s, max)
+   .group(sum)
+	 
+pop().mul(2)
+```
+The create line will create a time series set, and pop allow the user to apply Time series operation on a new line (without a FETCH or CREATE).
+
+The simple **pop** method works for both a Warp10 or a Prometheus backend.
+The **pop** method will not work inside a metrics operator set (time series sets addition for example). For this use case (only with Warp 10 at the moment), you can use pop in variables:
+
+```tsl
+create(series("a").setLabels(["l0=42","l1=42"]).setValues("now", [-5m, 2], [0, 1]).setValues("now",[2m, 3]),series("test2").setLabels(["l0=42","l2=43"]).setValues("now", [-5m, 2], [0, 1]))
+	 .sampleBy(30s, max)
+   .group(sum)
+
+create(series("b").setLabels(["l0=42","l1=42"]).setValues("now", [-5m, 2], [0, 1]).setValues("now",[2m, 3]),series("test2").setLabels(["l0=42","l2=43"]).setValues("now", [-5m, 2], [0, 1]))
+	 .sampleBy(30s, max)
+   .group(sum)	 
+
+a = pop().mul(2)
+b = pop().mul(10)
+
+add(a, b)
+```
+
 ## Going further
 
 You can exchange with us here or on our [gitter room](https://gitter.im/ovh/metrics-TSL).

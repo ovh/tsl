@@ -36,6 +36,11 @@ func (i Instruction) GetConnectType() string {
 	return i.connectStatement.connectType
 }
 
+// GetSelectStatement return instruction SelectStatement
+func (i Instruction) GetSelectStatement() SelectStatement {
+	return i.selectStatement
+}
+
 // GetConnectAPI return instruction api
 func (i Instruction) GetConnectAPI() string {
 	return i.connectStatement.api
@@ -105,6 +110,17 @@ type SelectStatement struct {
 	hasRate         bool
 	pos             Pos
 	attributePolicy AttributePolicy
+	isPop           bool
+}
+
+// IsPopStatement return if SelectStatement is pop
+func (s SelectStatement) IsPopStatement() bool {
+	return s.isPop
+}
+
+// MergeFrameworkStatement merge two frameworks of two selectStatement
+func (s SelectStatement) MergeFrameworkStatement(toMerge SelectStatement) {
+	s.frameworks = append(s.frameworks, toMerge.frameworks...)
 }
 
 // WhereField correponds to an internal where field
