@@ -10,7 +10,7 @@ CFLAGS		:= -X 'github.com/ovh/tsl/cmd.githash=$(GITHASH)' -X 'github.com/ovh/tsl
 CROSS			:= GOOS=linux GOARCH=amd64
 WASMFLAGS	:= GOOS=js GOARCH=wasm
 WASMEXEC	:= tsl.wasm
-SOLIB	:= build/so/tsl.so
+SOLIB	:= $(BUILD_DIR)/so/tsl_$(VERSION).so
 SOFLAGS   := -buildmode=c-shared
 VERSION				:= $(shell git describe --tags --candidates 1 --match '*.*')
 
