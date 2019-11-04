@@ -12,9 +12,13 @@ WASMFLAGS	:= GOOS=js GOARCH=wasm
 WASMEXEC	:= tsl.wasm
 SOLIB	:= build/so/tsl.so
 SOFLAGS   := -buildmode=c-shared
+VERSION				:= $(shell git describe --tags --candidates 1 --match '*.*')
 
 FORMAT_PATHS	:= ./cmd/ ./middlewares/ ./tsl tsl.go
 LINT_PATHS		:= ./ ./cmd/... ./middlewares/... ./tsl/...
+
+BUILD_FILE	:= tsl_$(VERSION)
+BUILD_DEST	:= $(BUILD_DIR)/$(BUILD_FILE)
 
 rwildcard	:= $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2) $(filter $(subst *,%,$2),$d))
 
@@ -67,8 +71,8 @@ so:
 
 .PHONY: release
 release: tsl.go $$(call rwildcard, ./cmd, *.go) $$(call rwildcard, ./core, *.go) $$(call rwildcard, ./tsl, *.go) $$(call rwildcard, ./middlewares, *.go)
-	$(CC) -ldflags "$(CFLAGS)" -o $(BUILD_DIR)/tsl tsl.go
+	$(CC) -ldflags "$(CFLAGS)" -o $(BUILD_DEST) tsl.go
 
 .PHONY: dist
 dist: tsl.go $$(call rwildcard, ./cmd, *.go) $$(call rwildcard, ./core, *.go) $$(call rwildcard, ./tsl, *.go) $$(call rwildcard, ./middlewares, *.go)
-	$(CROSS) $(CC) -ldflags "$(CFLAGS) -s -w" -o $(BUILD_DIR)/tsl tsl.go
+	$(CROSS) $(CC) -ldflags "$(CFLAGS) -s -w" -o $(BUILD_DEST) tsl.go
