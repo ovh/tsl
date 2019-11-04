@@ -101,7 +101,8 @@ func (proxyTsl ProxyTSL) Query(ctx echo.Context) error {
 	}
 
 	// Get query parsing result
-	parser, err := tsl.NewParser(strings.NewReader(string(body)), backendURL, tokenString, lineStart, queryRange, samplersCount)
+	variables := []string{}
+	parser, err := tsl.NewParser(strings.NewReader(string(body)), backendURL, tokenString, lineStart, queryRange, samplersCount, variables)
 	if err != nil {
 		proxyTsl.WarnCounter.Inc()
 		return ctx.JSON(http.StatusBadRequest, tsl.NewError(err))
@@ -270,7 +271,8 @@ func tslToWarpScript(tslQuery string, defaulToken string, allowAuthenticate bool
 	}
 
 	// Get query parsing result
-	parser, err := tsl.NewParser(strings.NewReader(tslQuery), "warp", defaulToken, lineCountInt, queryRange, samplersCount)
+	variables := []string{}
+	parser, err := tsl.NewParser(strings.NewReader(tslQuery), "warp", defaulToken, lineCountInt, queryRange, samplersCount, variables)
 	if err != nil {
 		return "", err
 	}
@@ -329,7 +331,8 @@ func tslToPromQL(tslQuery string, token string, params map[string]string) (strin
 	}
 
 	// Generate parser
-	parser, err := tsl.NewParser(strings.NewReader(tslQuery), "warp", token, lineCountInt, queryRange, samplersCount)
+	variables := []string{}
+	parser, err := tsl.NewParser(strings.NewReader(tslQuery), "warp", token, lineCountInt, queryRange, samplersCount, variables)
 	if err != nil {
 		return "", err
 	}

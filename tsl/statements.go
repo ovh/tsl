@@ -94,6 +94,7 @@ type DataPoint struct {
 // SelectStatement represents a TSL SELECT instruction
 type SelectStatement struct {
 	metric          string
+	metricType      Token
 	selectAll       bool
 	where           []WhereField
 	last            LastStatement
@@ -105,21 +106,29 @@ type SelectStatement struct {
 	hasRate         bool
 	pos             Pos
 	attributePolicy AttributePolicy
+	isVariable      bool
+}
+
+// IsVariableStatement return if SelectStatement starts by a native variable
+func (s SelectStatement) IsVariableStatement() bool {
+	return s.isVariable
 }
 
 // WhereField correponds to an internal where field
 type WhereField struct {
-	key   string
-	value string
-	op    MatchType
+	key       string
+	value     string
+	op        MatchType
+	whereType Token
 }
 
 // LastStatement represents the last method of the SELECT instruction
 type LastStatement struct {
 	last       string
 	isDuration bool
-	options    map[PrefixAttributes]string
+	options    map[PrefixAttributes]InternalField
 	pos        Pos
+	lastType   Token
 }
 
 // FromStatement represents the from part of the SELECT instruction
