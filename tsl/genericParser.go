@@ -51,7 +51,7 @@ type QueryRange struct {
 }
 
 // NewParser returns a new instance of Parser
-func NewParser(r io.Reader, defaultURI, defaultToken string, lineHeader int, queryRange string, samplersCount string) (*Parser, error) {
+func NewParser(r io.Reader, defaultURI, defaultToken string, lineHeader int, queryRange string, samplersCount string, variableList []string) (*Parser, error) {
 
 	hasQueryRange := false
 	parserQueryRange := &QueryRange{}
@@ -72,7 +72,14 @@ func NewParser(r io.Reader, defaultURI, defaultToken string, lineHeader int, que
 			return nil, fmt.Errorf("Error in header %q, expects an Integer number", samplersCountHeader)
 		}
 	}
-	return &Parser{s: newBufScanner(r), defaultURI: defaultURI, defaultToken: defaultToken, lineStart: lineHeader,
+
+	variables := make(map[string]*Variable)
+
+	for _, variable := range variableList {
+		variables[variable] = &Variable{name: variable, tokenType: NATIVEVARIABLE, lit: variable}
+	}
+
+	return &Parser{s: newBufScanner(r), variables: variables, defaultURI: defaultURI, defaultToken: defaultToken, lineStart: lineHeader,
 		hasQueryRange: hasQueryRange, queryRange: parserQueryRange, samplersCount: lit}, nil
 }
 
@@ -159,7 +166,6 @@ func (p *Parser) Unscan() { p.s.Unscan() }
 func (p *Parser) Parse() (*Query, error) {
 	var statements Statements
 	connectStatement := &ConnectStatement{api: p.defaultURI, token: p.defaultToken, pos: Pos{Line: 0, Char: 0}}
-	p.variables = make(map[string]*Variable)
 
 	// For each new elements split per a space, line or comment to start parsing each single instruction
 	for {
@@ -293,7 +299,7 @@ loop:
 
 				p.Unscan()
 
-				instruction, err = p.parsePostVariables(pos, lit, instruction.connectStatement, false)
+				instruction, err = p.parsePostVariables(pos, lit, instruction.connectStatement, false, loadVariable)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -344,7 +350,7 @@ loop:
 	return instruction, newConnectStatement, nil
 }
 
-func (p *Parser) parsePostVariables(pos Pos, lit string, connectStatement ConnectStatement, internCall bool) (*Instruction, error) {
+func (p *Parser) parsePostVariables(pos Pos, lit string, connectStatement ConnectStatement, internCall bool, loadVariable bool) (*Instruction, error) {
 	internalInstruction := &Instruction{}
 	variable, exists := p.variables[lit]
 	var err error
@@ -359,6 +365,29 @@ func (p *Parser) parsePostVariables(pos Pos, lit string, connectStatement Connec
 	internalInstruction = setConnectCall(internalInstruction, connectStatement)
 
 	switch variable.tokenType {
+
+	case NATIVEVARIABLE:
+		// Parse post select methods
+		nexTok, _, _ := p.ScanIgnoreWhitespace()
+		p.Unscan()
+
+		nativeVariableFw := &FrameworkStatement{
+			pos:               pos,
+			operator:          NATIVEVARIABLE,
+			attributes:        make(map[PrefixAttributes]InternalField),
+			unNamedAttributes: map[int]InternalField{0: {tokenType: STRING, lit: lit}}}
+
+		internalInstruction.selectStatement.frameworks = append([]FrameworkStatement{*nativeVariableFw}, internalInstruction.selectStatement.frameworks...)
+		internalInstruction.hasSelect = true
+		internalInstruction.selectStatement.isVariable = true
+
+		if nexTok == DOT {
+			internalInstruction, err = p.parsePostNativeVariable(internalInstruction, internCall)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 	case SELECT:
 
 		// Parse post select methods
@@ -402,6 +431,66 @@ func (p *Parser) parsePostVariables(pos Pos, lit string, connectStatement Connec
 	}
 
 	return internalInstruction, nil
+}
+
+func (p *Parser) parsePostNativeVariable(instruction *Instruction, internCall bool) (*Instruction, error) {
+	var err error
+
+	// For each methods split per a DOT
+loop:
+	for {
+		tok, _, _ := p.ScanIgnoreDOT()
+
+		// Parse valid post operators methods: on
+		switch tok {
+		case WS, COMMENT:
+			nexTok, _, _ := p.ScanIgnoreWhitespace()
+
+			if nexTok != DOT {
+				p.Unscan()
+				break loop
+			}
+
+		case ON, IGNORING, GROUPLEFT, GROUPRIGHT:
+			p.Unscan()
+			// Parse post methods
+			instruction, err = p.parsePostOperatorStatement(instruction, internCall)
+
+			if err != nil {
+				return nil, err
+			}
+
+		case NAMES, LABELS, SELECTORS, ATTRIBUTES, WHERE, ATTRIBUTEPOLICY, FROM, LAST:
+			p.Unscan()
+			// Parse post methods
+			instruction, err = p.parsePostSelectStatement(instruction, internCall)
+
+			if err != nil {
+				return nil, err
+			}
+
+		case EOF:
+			break loop
+
+		case COMMA, RPAREN:
+			if internCall {
+				p.Unscan()
+				break loop
+			}
+		default:
+			p.Unscan()
+
+			// Parse post methods
+			instruction, err = p.parseTimesSeriesOperators(instruction, internCall)
+
+			if err != nil {
+				return nil, err
+			}
+
+			break loop
+		}
+	}
+	return instruction, nil
 }
 
 func setConnectCall(instruction *Instruction, connectStatement ConnectStatement) *Instruction {
@@ -1148,8 +1237,13 @@ func (p *Parser) parseSelect(tok Token, pos Pos, lit string, instruction *Instru
 	// Set current select field into instruction
 	if fields[0].tokenType == STRING {
 		selectStatement.metric = fields[0].lit
+		selectStatement.metricType = STRING
 	} else if fields[0].tokenType == ASTERISK {
 		selectStatement.selectAll = true
+		selectStatement.metricType = ASTERISK
+	} else if fields[0].tokenType == NATIVEVARIABLE {
+		selectStatement.metricType = NATIVEVARIABLE
+		selectStatement.metric = fields[0].lit
 	}
 
 	instruction.selectStatement = *selectStatement
@@ -1247,29 +1341,37 @@ func (p *Parser) parseWhere(tok Token, pos Pos, lit string, instruction *Instruc
 		fieldsString = make([]WhereField, len(fields[0].fieldList))
 
 		for k, v := range fields[0].fieldList {
-			var err error
+			if v.tokenType == NATIVEVARIABLE {
+				where := &WhereField{whereType: NATIVEVARIABLE, key: v.lit}
+				fieldsString[k] = *where
+			} else {
+				var err error
+				if v.tokenType != STRING {
+					errMessage := fmt.Sprintf("Function %q expects only strings as fields clauses", tok.String())
+					return nil, p.NewTslError(errMessage, pos)
+				}
 
-			if v.tokenType != STRING {
-				errMessage := fmt.Sprintf("Function %q expects only strings as fields clauses", tok.String())
-				return nil, p.NewTslError(errMessage, pos)
-			}
-
-			where, err := p.getWhereField(v.lit, pos)
-			fieldsString[k] = *where
-			if err != nil {
-				return nil, err
+				where, err := p.getWhereField(v.lit, pos)
+				fieldsString[k] = *where
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 
 	} else {
 
 		for k, v := range fields {
-			var err error
-
-			where, err := p.getWhereField(v.lit, pos)
-			fieldsString[k] = *where
-			if err != nil {
-				return nil, err
+			if v.tokenType == NATIVEVARIABLE {
+				where := &WhereField{whereType: NATIVEVARIABLE, key: v.lit}
+				fieldsString[k] = *where
+			} else {
+				var err error
+				where, err := p.getWhereField(v.lit, pos)
+				fieldsString[k] = *where
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -1422,7 +1524,7 @@ func (p *Parser) getWhereField(lit string, pos Pos) (*WhereField, error) {
 
 	// Instantiate future where and set a negative max length
 	maxLength := -1
-	whereField := &WhereField{}
+	whereField := &WhereField{whereType: STRING}
 
 	// Loop over all possibles operators
 	for _, value := range values {
@@ -1524,6 +1626,9 @@ func (p *Parser) parseLast(tok Token, pos Pos, lit string, instruction *Instruct
 		{tokenType: INTEGER, prefixName: LastTimestamp, hasPrefixName: true},
 		{tokenType: NUMBER, prefixName: LastTimestamp, hasPrefixName: true},
 		{tokenType: STRING, prefixName: LastDate, hasPrefixName: true},
+		{tokenType: NATIVEVARIABLE, prefixName: LastShift, hasPrefixName: true},
+		{tokenType: NATIVEVARIABLE, prefixName: LastTimestamp, hasPrefixName: true},
+		{tokenType: NATIVEVARIABLE, prefixName: LastDate, hasPrefixName: true},
 		{tokenType: DURATIONVAL},
 		{tokenType: INTEGER},
 		{tokenType: NUMBER},
@@ -1540,11 +1645,14 @@ func (p *Parser) parseLast(tok Token, pos Pos, lit string, instruction *Instruct
 	// Instantiate a new last statement
 	last := &LastStatement{}
 	last.pos = pos
-	last.options = make(map[PrefixAttributes]string)
+	last.options = make(map[PrefixAttributes]InternalField)
 
 	// Verify first field
 	if fields[0].tokenType == INTEGER {
 		last.last = fields[0].lit
+	} else if fields[0].tokenType == NATIVEVARIABLE {
+		last.last = fields[0].lit
+		last.lastType = fields[0].tokenType
 	} else if fields[0].tokenType == DURATIONVAL {
 		last.last = fields[0].lit
 		last.isDuration = true
@@ -1584,7 +1692,7 @@ func (p *Parser) verifyLastFieldsType(field InternalField, last *LastStatement, 
 	if field.hasPrefixName {
 		switch field.prefixName {
 		case LastShift, LastTimestamp, LastDate:
-			last.options[field.prefixName] = field.lit
+			last.options[field.prefixName] = field
 		default:
 			errMessage := fmt.Sprintf("Function %q expects its second parameter to shift, timestamp or a date, got %q", LAST.String(), field.lit)
 			return nil, p.NewTslError(errMessage, pos)
@@ -1592,11 +1700,13 @@ func (p *Parser) verifyLastFieldsType(field InternalField, last *LastStatement, 
 	} else {
 		switch field.tokenType {
 		case INTEGER:
-			last.options[LastTimestamp] = field.lit
+			last.options[LastTimestamp] = field
 		case DURATIONVAL:
-			last.options[LastShift] = field.lit
+			last.options[LastShift] = field
 		case STRING:
-			last.options[LastDate] = field.lit
+			last.options[LastDate] = field
+		case NATIVEVARIABLE:
+			last.options[Unknown] = field
 		default:
 			errMessage := fmt.Sprintf("Function %q expects its second parameter to be a DURATIONVAL shift, an INTEGER timestamp or a STRING date, got %q", LAST.String(), field.lit)
 			return nil, p.NewTslError(errMessage, pos)
@@ -1626,7 +1736,7 @@ func (p *Parser) parseGlobalSeriesOp(tok Token, pos Pos, lit string, instruction
 		nextTok, nextPos, nextLit := p.ScanIgnoreWhitespace()
 
 		if nextTok == IDENT {
-			internalInstruction, err := p.parsePostVariables(nextPos, nextLit, instruction.connectStatement, true)
+			internalInstruction, err := p.parsePostVariables(nextPos, nextLit, instruction.connectStatement, true, loadVariable)
 			if err != nil {
 				return nil, err
 			}
@@ -1689,6 +1799,8 @@ func (p *Parser) parseSampleBy(tok Token, pos Pos, lit string, instruction *Inst
 		{tokenType: DURATIONVAL},
 		{tokenType: DURATIONVAL, prefixName: SampleSpan, hasPrefixName: true},
 		{tokenType: INTEGER, prefixName: SampleAuto, hasPrefixName: true},
+		{tokenType: NATIVEVARIABLE, prefixName: SampleSpan, hasPrefixName: true},
+		{tokenType: NATIVEVARIABLE, prefixName: SampleAuto, hasPrefixName: true},
 		{tokenType: INTEGER},
 	}
 
@@ -1774,6 +1886,9 @@ func (p *Parser) parseSampleBy(tok Token, pos Pos, lit string, instruction *Inst
 			} else if field.tokenType == INTEGER {
 				field.prefixName = SampleAuto
 				field.hasPrefixName = true
+			} else if field.tokenType == NATIVEVARIABLE {
+				field.prefixName = SampleSpan
+				field.hasPrefixName = true
 			}
 			sampler.attributes[field.prefixName] = field
 			continue
@@ -1846,7 +1961,7 @@ func (p *Parser) parseSampleBy(tok Token, pos Pos, lit string, instruction *Inst
 
 	// Error if span set in sample and fetch not fixed in time
 	if hasSpan && !hasCount {
-		if !instruction.selectStatement.hasFrom && !instruction.selectStatement.last.isDuration {
+		if !instruction.selectStatement.hasFrom && !instruction.selectStatement.last.isDuration && !instruction.selectStatement.IsVariableStatement() {
 			errMessage := fmt.Sprintf("In %q function, got a span when select was done on a counted item. Use also an integer number as sample count in that case", tok.String())
 			return nil, p.NewTslError(errMessage, pos)
 		}
@@ -2019,6 +2134,7 @@ func (p *Parser) parseGroupBy(tok Token, pos Pos, lit string, instruction *Instr
 	labelsFields := []InternalField{
 		{tokenType: INTERNALLIST},
 		{tokenType: STRING},
+		{tokenType: NATIVEVARIABLE},
 	}
 
 	// Optional parameter
@@ -2076,8 +2192,8 @@ func (p *Parser) parseGroupBy(tok Token, pos Pos, lit string, instruction *Instr
 				}
 				groupBy.unNamedAttributes[index] = internalField
 			}
-		} else if (field.tokenType != STRING && field.tokenType != FALSE && field.tokenType != TRUE) || field.prefixName == Aggregator {
-			if field.tokenType != STRING && field.tokenType != NUMBER && field.tokenType != INTEGER {
+		} else if (field.tokenType != STRING && field.tokenType != FALSE && field.tokenType != TRUE && field.tokenType != NATIVEVARIABLE) || field.prefixName == Aggregator {
+			if field.tokenType != STRING && field.tokenType != NUMBER && field.tokenType != INTEGER && field.tokenType != NATIVEVARIABLE {
 				field.lit = field.tokenType.String()
 			}
 
@@ -2093,6 +2209,8 @@ func (p *Parser) parseGroupBy(tok Token, pos Pos, lit string, instruction *Instr
 			groupBy.attributes[Aggregator] = field
 			continue
 		} else if field.tokenType == STRING {
+			groupBy.unNamedAttributes[0] = field
+		} else if field.tokenType == NATIVEVARIABLE {
 			groupBy.unNamedAttributes[0] = field
 		} else if field.tokenType == FALSE || field.tokenType == TRUE {
 			groupBy.attributes[KeepDistinct] = field
@@ -2123,11 +2241,13 @@ func (p *Parser) manageValueAggregator(op *FrameworkStatement, pos Pos, tok Toke
 
 	if field.tokenType == JOIN {
 		atType[STRING] = "string"
+		atType[NATIVEVARIABLE] = "Nat vatiable"
 	}
 
 	if field.tokenType == PERCENTILE {
 		atType[NUMBER] = "a decimal number"
 		atType[INTEGER] = "an integer number"
+		atType[NATIVEVARIABLE] = "Nat vatiable"
 	}
 
 	typesValues := make([]string, len(atType))
@@ -2172,7 +2292,6 @@ func (p *Parser) manageValueAggregator(op *FrameworkStatement, pos Pos, tok Toke
 			nextField.lit += ".0"
 			nextField.tokenType = NUMBER
 		}
-
 	}
 	op.unNamedAttributes[0] = nextField
 
@@ -2602,7 +2721,7 @@ func (p *Parser) parseAggregatorFunction(tok Token, pos Pos, lit string, instruc
 	op.unNamedAttributes = make(map[int]InternalField)
 
 	minField := 1
-	maxField := 1
+	maxField := 2
 
 	// Instantiate a single time oprerator
 	zeroFields := []InternalField{
@@ -2642,6 +2761,9 @@ func (p *Parser) parseAggregatorFunction(tok Token, pos Pos, lit string, instruc
 		paramsFields[2] = preField
 		paramsFields[3] = preField
 		maxField = 4
+	} else {
+		percentileField := []InternalField{{tokenType: INTEGER}}
+		paramsFields[1] = percentileField
 	}
 
 	// Instantiate Mapper with no field expected
@@ -2667,16 +2789,12 @@ func (p *Parser) parseAggregatorFunction(tok Token, pos Pos, lit string, instruc
 	// Index to skip (aggregators parameters)
 	skippedIndex := make(map[int]bool)
 
-	// Add index keep track of where we are of "unamed params" pre and post
-	addIndex := 0
-
 	for index, field := range fields {
 
 		// Skip aggregator parameter
 		if _, exists := skippedIndex[index]; exists {
 			continue
 		}
-		addIndex++
 
 		if field.hasPrefixName {
 			op.attributes[field.prefixName] = field
@@ -2693,12 +2811,15 @@ func (p *Parser) parseAggregatorFunction(tok Token, pos Pos, lit string, instruc
 				if err != nil {
 					return nil, err
 				}
+			} else if tok != WINDOW && len(fields) > 1 {
+				errMessage := fmt.Sprintf("Found %q, %q does not expected a field with type %q", lit, tok.String(), fields[1].tokenType.String())
+				return nil, p.NewTslError(errMessage, pos)
 			}
-		} else if addIndex == 2 {
+		} else if index == 2 {
 			field.prefixName = MapperPre
 			field.hasPrefixName = true
 			op.attributes[MapperPre] = field
-		} else if addIndex == 3 {
+		} else if index == 3 {
 			field.prefixName = MapperPost
 			field.hasPrefixName = true
 			op.attributes[MapperPost] = field
@@ -2833,6 +2954,8 @@ func (p *Parser) ParseFields(function string, internalFields map[int][]InternalF
 			okField[0] = InternalField{tokenType: STRING}
 		}
 
+		okField = append(okField, InternalField{tokenType: NATIVEVARIABLE})
+
 		// Find the current field type
 		findType := false
 
@@ -2890,10 +3013,13 @@ func (p *Parser) ParseFields(function string, internalFields map[int][]InternalF
 					return nil, p.NewTslError(errMessage, pos)
 				}
 				tok, pos, lit = p.ScanIgnoreWhitespace()
+
 				if tok == STRING {
 					field.lit = "'" + lit + "'"
 				} else if tok == NUMBER || tok == INTEGER || tok == NEGNUMBER || tok == NEGINTEGER {
 					field.lit = lit
+				} else if tok == IDENT || tok == NATIVEVARIABLE {
+					field.lit = "$" + lit
 				} else if tok == TRUE || tok == FALSE {
 					field.lit = tok.String()
 				} else {

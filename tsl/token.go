@@ -36,6 +36,7 @@ const (
 	DIV                    //
 	GTSLIST                // Internal GTS list type
 	MULTIPLESERIESOPERATOR // Internal GTS list type
+	NATIVEVARIABLE         // Backend native variable
 	//literalEnd
 
 	LPAREN       // (
@@ -382,6 +383,7 @@ const (
 	KeepDistinct
 	GroupIsWithout
 	NowValue
+	Unknown
 )
 
 func (m PrefixAttributes) String() string {
@@ -406,6 +408,7 @@ func (m PrefixAttributes) String() string {
 		KeepDistinct:     "keepDistinct",
 		NValue:           "n",
 		NowValue:         "now",
+		Unknown:          "unknown",
 	}
 	if str, ok := typeToStr[m]; ok {
 		return str

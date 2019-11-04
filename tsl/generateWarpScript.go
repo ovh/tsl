@@ -59,7 +59,7 @@ var toWarpScript = [...]string{
 func (protoParser *ProtoParser) GenerateWarpScript(instructions []Instruction, allowAuthenticate bool) (string, error) {
 	var buffer bytes.Buffer
 
-	buffer.WriteString("NOW 'now' STORE")
+	buffer.WriteString("NOW 'now' STORE\n")
 	buffer.WriteString("\n")
 
 	// In case stack authentication is allowed in configuration
@@ -103,7 +103,7 @@ func (protoParser *ProtoParser) processWarpScriptInstruction(instruction Instruc
 	var buffer bytes.Buffer
 
 	// As Meta is a single instruction test it first and propagate result
-	if instruction.isMeta {
+	if instruction.isMeta && !(instruction.hasSelect && instruction.selectStatement.isVariable) {
 		val, err := protoParser.getMeta(instruction.selectStatement, instruction.connectStatement.token)
 		if err != nil {
 			return "", err
@@ -123,12 +123,16 @@ func (protoParser *ProtoParser) processWarpScriptInstruction(instruction Instruc
 			buffer.WriteString(create)
 
 		} else {
-			fetch, err := protoParser.getFetch(instruction.selectStatement, instruction.connectStatement.token, prefix)
-			if err != nil {
-				return "", nil
-			}
+			if instruction.selectStatement.isVariable {
+				buffer.WriteString("")
+			} else {
+				fetch, err := protoParser.getFetch(instruction.selectStatement, instruction.connectStatement.token, prefix)
+				if err != nil {
+					return "", nil
+				}
 
-			buffer.WriteString(fetch)
+				buffer.WriteString(fetch)
+			}
 		}
 		buffer.WriteString("\n")
 
@@ -243,12 +247,18 @@ func (protoParser *ProtoParser) getFrameworksOp(selectStatement SelectStatement,
 			buffer.WriteString(bucketize)
 			buffer.WriteString("\n")
 		case ABS, ADDSERIES, ANDL, CEIL, COUNT, DAY, DELTA, DIVSERIES, EQUAL, FLOOR, GREATERTHAN, GREATEROREQUAL, LESSTHAN, LESSOREQUAL,
-			LN, LOG2, LOG10, LOGN, HOUR, MAX, MAXWITH, MEAN, MEDIAN, MIN, MINWITH, MINUTE, MONTH, MULSERIES, NOTEQUAL, ORL, RATE, STDDEV, STDVAR,
+			LN, LOG2, LOG10, LOGN, HOUR, MAX, MAXWITH, MEAN, MEDIAN, MIN, MINWITH, MINUTE, MONTH, MULSERIES, NOTEQUAL, ORL, RATE, STDDEV, STDVAR, SUBSERIES,
 			ROUND, SQRT, SUM, TIMESTAMP, WEEKDAY, YEAR, JOIN, PERCENTILE, CUMULATIVE, WINDOW, FINITE, TOBOOLEAN, TODOUBLE, TOLONG, TOSTRING:
 
 			buffer.WriteString(protoParser.getMapper(framework, sampleSpan))
 			buffer.WriteString("\n")
-
+		case NATIVEVARIABLE:
+			pop, err := protoParser.popVariableCall(framework, prefix)
+			if err != nil {
+				return "", err
+			}
+			buffer.WriteString(pop)
+			buffer.WriteString("\n")
 		case QUANTIZE:
 			quantize, err := protoParser.quantize(framework, prefix)
 			if err != nil {
@@ -301,7 +311,11 @@ func (protoParser *ProtoParser) getFrameworksOp(selectStatement SelectStatement,
 			framework.operator = RENAME
 
 			value := framework.unNamedAttributes[0]
-			value.lit = "%2B" + value.lit
+			if value.tokenType == NATIVEVARIABLE {
+				value.lit = value.lit + " '%2B' SWAP + "
+			} else {
+				value.lit = "%2B" + value.lit
+			}
 			framework.unNamedAttributes[0] = value
 
 			buffer.WriteString(protoParser.nValuesOperators(framework))
@@ -371,6 +385,20 @@ func (protoParser *ProtoParser) getFrameworksOp(selectStatement SelectStatement,
 	return buffer.String(), nil
 }
 
+// popVariable generate WarpScript line for a Native Variable statement
+func (protoParser *ProtoParser) popVariableCall(framework FrameworkStatement, prefix string) (string, error) {
+	var buffer bytes.Buffer
+
+	if len(framework.unNamedAttributes) != 1 {
+		errMessage := fmt.Sprintf("Unexpected error in function pop")
+		return "", protoParser.NewProtoError(errMessage, framework.pos)
+	}
+
+	buffer.WriteString("$" + framework.unNamedAttributes[0].lit + "\n")
+
+	return buffer.String(), nil
+}
+
 func (protoParser ProtoParser) getMeta(selectStatement SelectStatement, token string) (string, error) {
 
 	for _, framework := range selectStatement.frameworks {
@@ -401,17 +429,24 @@ func (protoParser ProtoParser) getFind(selectStatement SelectStatement, token st
 	}
 
 	metric := selectStatement.metric
-	if selectStatement.selectAll {
+
+	if selectStatement.metricType == NATIVEVARIABLE {
+		metric = "$" + metric
+	} else if selectStatement.selectAll {
 		metric = "~.*"
+	} else {
+		metric = "'" + metric + "'"
 	}
+
 	suffix := ""
 
 	if (framework.operator == LABELS || framework.operator == ATTRIBUTES) && len(framework.unNamedAttributes) > 0 {
-		suffix = "'" + framework.unNamedAttributes[0].lit + "' GET"
+		tagKey := protoParser.getLit(framework.unNamedAttributes[0])
+		suffix = tagKey + " GET"
 	}
 
-	// Otherwise return last tick and duration from value in Fetch
-	find := fmt.Sprintf("[ %q %q "+protoParser.getFetchLabels(selectStatement.where)+" ] FIND", token, metric)
+	// Find the series
+	find := "[ '" + token + "' " + metric + " " + protoParser.getFetchLabels(selectStatement.where) + " ] FIND"
 	find += "\n<% DROP " + op + " " + suffix + " %> LMAP UNIQUE"
 	return find, nil
 }
@@ -445,13 +480,7 @@ func (protoParser *ProtoParser) operatorBy(framework FrameworkStatement, hasBy b
 
 	paramValue := ""
 	if len(framework.unNamedAttributes) == 1 {
-		if framework.unNamedAttributes[0].tokenType == STRING {
-			paramValue = "'" + framework.unNamedAttributes[0].lit + "' "
-		} else if framework.unNamedAttributes[0].tokenType == DURATIONVAL {
-			paramValue = protoParser.parseShift(framework.unNamedAttributes[0].lit) + " "
-		} else {
-			paramValue = framework.unNamedAttributes[0].lit + " "
-		}
+		paramValue = protoParser.getLit(framework.unNamedAttributes[0])
 	}
 
 	bucketizer := paramValue + "bucketizer." + aggregator
@@ -482,22 +511,14 @@ func (protoParser *ProtoParser) getCreateSeries(createStatement CreateStatement,
 		for _, value := range createSeries.values {
 			buffer.WriteString(prefix + "    ")
 
-			tick := value.tick.lit
-
-			if value.tick.tokenType == DURATIONVAL {
-				tick = protoParser.parseShift(value.tick.lit)
-			}
+			tick := protoParser.getLit(*value.tick)
 
 			if createSeries.end.lit != "" {
 
-				end := createSeries.end.lit
+				end := protoParser.getLit(*createSeries.end)
 
 				if createSeries.end.tokenType == STRING && createSeries.end.lit == NowValue.String() {
 					end = "NOW"
-				}
-
-				if createSeries.end.tokenType == DURATIONVAL {
-					end = protoParser.parseShift(value.tick.lit)
 				}
 
 				tick = end + " " + tick + " +"
@@ -509,13 +530,8 @@ func (protoParser *ProtoParser) getCreateSeries(createStatement CreateStatement,
 			buffer.WriteString(tick)
 			buffer.WriteString(" NaN NaN NaN ")
 
-			valueString := value.value.lit
+			valueString := protoParser.getLit(*value.value)
 
-			if value.value.tokenType == STRING {
-				valueString = "'" + valueString + "'"
-			} else if value.value.tokenType == DURATIONVAL {
-				valueString = protoParser.parseShift(value.value.lit)
-			}
 			buffer.WriteString(valueString)
 			buffer.WriteString(" ADDVALUE\n")
 		}
@@ -527,7 +543,6 @@ func (protoParser *ProtoParser) getCreateSeries(createStatement CreateStatement,
 
 // Generate a fetch statement
 func (protoParser *ProtoParser) getFetch(selectStatement SelectStatement, token string, prefix string) (string, error) {
-
 	lastTick, err := protoParser.getLastTick(selectStatement)
 	if err != nil {
 		return "", err
@@ -535,28 +550,34 @@ func (protoParser *ProtoParser) getFetch(selectStatement SelectStatement, token 
 	from := protoParser.getFrom(selectStatement)
 
 	metric := selectStatement.metric
-	if selectStatement.selectAll {
+	if selectStatement.metricType == NATIVEVARIABLE {
+		metric = "$" + metric
+	} else if selectStatement.selectAll {
 		metric = "~.*"
+	} else {
+		metric = "'" + metric + "'"
 	}
 
 	// Return find when no last or from methods were sets
 	if !selectStatement.hasFrom && !selectStatement.hasLast {
-		find := fmt.Sprintf("[ %q %q "+protoParser.getFetchLabels(selectStatement.where)+" ] FIND", token, metric)
+		find := fmt.Sprintf("[ '%q' %q "+protoParser.getFetchLabels(selectStatement.where)+" ] FIND", token, metric)
 		attPolicy := protoParser.getAttributePolicyString(selectStatement.attributePolicy, prefix)
 		return find + attPolicy, nil
 	}
 
 	// When has from set return duration between from and lastitck
 	if selectStatement.hasFrom {
-		fetch := fmt.Sprintf("[ %q %q "+protoParser.getFetchLabels(selectStatement.where)+" "+from+" "+lastTick+" ] FETCH", token, metric)
+		var fetch bytes.Buffer
+		fetch.WriteString("[ '" + token + "' " + metric + " " + protoParser.getFetchLabels(selectStatement.where) + " " + from + " " + lastTick + " ] FETCH ")
 		attPolicy := protoParser.getAttributePolicyString(selectStatement.attributePolicy, prefix)
-		return fetch + attPolicy, nil
+		return fetch.String() + attPolicy, nil
 	}
 
 	// Otherwise return last tick and duration from value in Fetch
-	fetch := fmt.Sprintf("[ %q %q "+protoParser.getFetchLabels(selectStatement.where)+" "+lastTick+" "+from+" ] FETCH", token, metric)
+	var fetch bytes.Buffer
+	fetch.WriteString("[ '" + token + "' " + metric + " " + protoParser.getFetchLabels(selectStatement.where) + " " + lastTick + " " + from + " ] FETCH ")
 	attPolicy := protoParser.getAttributePolicyString(selectStatement.attributePolicy, prefix)
-	return fetch + prefix + attPolicy, nil
+	return fetch.String() + prefix + attPolicy, nil
 }
 
 func (protoParser *ProtoParser) getAttributePolicyString(attPolicy AttributePolicy, prefix string) string {
@@ -584,11 +605,7 @@ func (protoParser *ProtoParser) getBucketize(selectStatement SelectStatement, fr
 		aggregator = attribute.lit
 
 		if attribute.tokenType == JOIN || attribute.tokenType == PERCENTILE {
-			if framework.unNamedAttributes[0].tokenType == STRING {
-				bucketizerParams = "'" + framework.unNamedAttributes[0].lit + "' "
-			} else {
-				bucketizerParams = framework.unNamedAttributes[0].lit + " "
-			}
+			bucketizerParams = protoParser.getLit(framework.unNamedAttributes[0])
 		}
 	}
 	bucketizer := bucketizerParams + "bucketizer." + aggregator
@@ -596,7 +613,7 @@ func (protoParser *ProtoParser) getBucketize(selectStatement SelectStatement, fr
 	// Same for span
 	var shiftSpan string
 	if attribute, ok := framework.attributes[SampleSpan]; ok {
-		shiftSpan = protoParser.parseShift(attribute.lit)
+		shiftSpan = protoParser.getLit(attribute)
 	} else {
 		// set default shift span to 0
 		shiftSpan = sampleShiftSpan
@@ -605,7 +622,7 @@ func (protoParser *ProtoParser) getBucketize(selectStatement SelectStatement, fr
 	hasCount := false
 	// Check if current attributes has a count field otherwise use 30 as default value
 	if attribute, ok := framework.attributes[SampleAuto]; ok {
-		auto = attribute.lit
+		auto = protoParser.getLit(attribute)
 		hasCount = true
 	}
 
@@ -697,7 +714,8 @@ func (protoParser *ProtoParser) getBucketize(selectStatement SelectStatement, fr
 	}
 
 	if fillValue, ok := framework.attributes[SampleFillValue]; ok {
-		fillText = " [ NaN NaN NaN " + fillValue.lit + " ] FILLVALUE"
+		fillValueLit := protoParser.getLit(fillValue)
+		fillText = " [ NaN NaN NaN " + fillValueLit + " ] FILLVALUE"
 	}
 
 	if !hasCount {
@@ -772,9 +790,11 @@ func (protoParser *ProtoParser) getShift(selectStatement SelectStatement, auto s
 		return sampleShiftSpan, nil
 	}
 
-	from := selectStatement.from.from.lit
+	from := protoParser.getLit(selectStatement.from.from)
 	if selectStatement.from.from.tokenType == STRING {
-		from = "'" + selectStatement.from.from.lit + "' TOTIMESTAMP"
+		from += " TOTIMESTAMP"
+	} else if selectStatement.from.from.tokenType == NATIVEVARIABLE {
+		from += " DUP TYPEOF <% 'STRING' == %> <% TOTIMESTAMP %> IFT "
 	}
 
 	last, err := protoParser.getLastTimestamp(selectStatement)
@@ -797,11 +817,7 @@ func (protoParser *ProtoParser) getReducer(framework FrameworkStatement, prefix 
 
 	reducerParams := ""
 	if framework.attributes[Aggregator].tokenType == JOIN || framework.attributes[Aggregator].tokenType == PERCENTILE {
-		if framework.unNamedAttributes[0].tokenType == STRING {
-			reducerParams = "'" + framework.unNamedAttributes[0].lit + "' "
-		} else {
-			reducerParams = framework.unNamedAttributes[0].lit + " "
-		}
+		reducerParams = protoParser.getLit(framework.unNamedAttributes[0])
 		delete(framework.unNamedAttributes, 0)
 	}
 	operator := reducerParams + "reducer." + operatorString
@@ -837,15 +853,7 @@ func (protoParser *ProtoParser) getMapper(framework FrameworkStatement, sampleSp
 	if framework.operator == RATE {
 		mapper := "[ SWAP mapper.rate 1 1 0 ] MAP "
 		if attribute, ok := framework.attributes[MapperValue]; ok {
-			value := ""
-			if attribute.tokenType == STRING {
-				value = "'" + attribute.lit + "'"
-			} else if attribute.tokenType == DURATIONVAL {
-				value = protoParser.parseShift(attribute.lit)
-			} else {
-				value = attribute.lit
-			}
-			value = value + " "
+			value := protoParser.getLit(attribute)
 			mapper += "[ SWAP " + value + " 1 s / mapper.mul 0 0 0 ] MAP "
 		}
 		return mapper
@@ -864,13 +872,7 @@ func (protoParser *ProtoParser) getMapper(framework FrameworkStatement, sampleSp
 
 		paramValue := ""
 		if len(framework.unNamedAttributes) == 1 {
-			if framework.unNamedAttributes[0].tokenType == STRING {
-				paramValue = "'" + framework.unNamedAttributes[0].lit + "' "
-			} else if framework.unNamedAttributes[0].tokenType == DURATIONVAL {
-				paramValue = protoParser.parseShift(framework.unNamedAttributes[0].lit) + " "
-			} else {
-				paramValue = framework.unNamedAttributes[0].lit + " "
-			}
+			paramValue = protoParser.getLit(framework.unNamedAttributes[0])
 		}
 		mapper = paramValue + "mapper." + aggregator.tokenType.String()
 		switch aggregator.tokenType {
@@ -879,6 +881,8 @@ func (protoParser *ProtoParser) getMapper(framework FrameworkStatement, sampleSp
 		}
 	case DIVSERIES:
 		mapper = "mapper.mul"
+	case SUBSERIES:
+		mapper = "-1 * mapper.add"
 	}
 
 	value := ""
@@ -889,6 +893,11 @@ func (protoParser *ProtoParser) getMapper(framework FrameworkStatement, sampleSp
 			value = "0" + attribute.lit
 		} else if attribute.tokenType == NEGNUMBER && strings.HasPrefix(attribute.lit, "-.") {
 			value = "-0" + strings.Trim(attribute.lit, "-")
+		} else if attribute.tokenType == NATIVEVARIABLE {
+			value = "$" + attribute.lit + " "
+			if framework.operator == DIVSERIES {
+				value = "1.0 " + value + " /"
+			}
 		} else {
 			value = attribute.lit
 
@@ -907,7 +916,7 @@ func (protoParser *ProtoParser) getMapper(framework FrameworkStatement, sampleSp
 	pre := "0"
 	post := "0"
 	if attribute, hasSampler := framework.attributes[MapperSampling]; hasSampler {
-		mapSampler := protoParser.parseShift(attribute.lit)
+		mapSampler := protoParser.getLit(attribute)
 		pre = mapSampler + " " + sampleSpan + " / ROUND"
 	}
 
@@ -916,6 +925,8 @@ func (protoParser *ProtoParser) getMapper(framework FrameworkStatement, sampleSp
 			pre = attribute.lit
 		} else if attribute.tokenType == DURATIONVAL {
 			pre = "-" + protoParser.parseShift(attribute.lit)
+		} else if attribute.tokenType == NATIVEVARIABLE {
+			pre = "$" + attribute.lit + " "
 		}
 	}
 
@@ -924,15 +935,15 @@ func (protoParser *ProtoParser) getMapper(framework FrameworkStatement, sampleSp
 			post = attribute.lit
 		} else if attribute.tokenType == DURATIONVAL {
 			post = "-" + protoParser.parseShift(attribute.lit)
+		} else if attribute.tokenType == NATIVEVARIABLE {
+			post = "$" + attribute.lit + " "
 		}
 	}
 
 	occurrences := "0"
 
 	if attribute, hasOccurences := framework.attributes[MapperOccurences]; hasOccurences {
-		if attribute.tokenType == INTEGER {
-			occurrences = attribute.lit
-		}
+		occurrences = protoParser.getLit(attribute)
 	}
 
 	return fmt.Sprintf("[ SWAP " + value + mapper + " " + pre + " " + post + " " + occurrences + " ] MAP ")
@@ -944,12 +955,8 @@ func (protoParser *ProtoParser) quantize(framework FrameworkStatement, prefix st
 	hasChunk := false
 
 	for key, attribute := range framework.unNamedAttributes {
-		paramValue := ""
-		if attribute.tokenType == STRING {
-			paramValue = "'" + attribute.lit + "' "
-		} else if attribute.tokenType == DURATIONVAL {
-			paramValue = protoParser.parseShift(attribute.lit) + " "
-		} else if attribute.tokenType == INTERNALLIST {
+		paramValue := protoParser.getLit(attribute)
+		if attribute.tokenType == INTERNALLIST {
 
 			paramValue = "[ "
 
@@ -960,6 +967,11 @@ func (protoParser *ProtoParser) quantize(framework FrameworkStatement, prefix st
 
 			for _, internalField := range attribute.fieldList {
 
+				if internalField.tokenType == NATIVEVARIABLE {
+					paramValue += "$" + internalField.lit + " "
+					continue
+				}
+
 				if internalField.tokenType != NUMBER && internalField.tokenType != INTEGER {
 					errMessage := fmt.Sprintf("Error in function quantize, expects only integer or number values in step list")
 					return "", protoParser.NewProtoError(errMessage, framework.pos)
@@ -967,8 +979,6 @@ func (protoParser *ProtoParser) quantize(framework FrameworkStatement, prefix st
 				paramValue += internalField.lit + " "
 			}
 			paramValue += "] "
-		} else {
-			paramValue = attribute.lit + " "
 		}
 		buffer.WriteString(paramValue)
 
@@ -1091,28 +1101,12 @@ func (protoParser *ProtoParser) operators(framework FrameworkStatement) string {
 	value := ""
 
 	if attribute, ok := framework.attributes[MapperValue]; ok {
-		if attribute.tokenType == STRING {
-			value = "'" + attribute.lit + "' "
-		} else if attribute.tokenType == DURATIONVAL {
-			value = protoParser.parseShift(attribute.lit) + " "
-		} else {
-			value = attribute.lit + " "
-		}
-		value = value + " "
+		value = protoParser.getLit(attribute)
 	} else if len(framework.unNamedAttributes) > 0 {
 
 		paramStrings := make([]string, len(framework.unNamedAttributes))
 		for key, attribute := range framework.unNamedAttributes {
-			paramValue := ""
-			if attribute.tokenType == STRING {
-				paramValue = "'" + attribute.lit + "' "
-			} else if attribute.tokenType == DURATIONVAL {
-				paramValue = protoParser.parseShift(attribute.lit)
-			} else if attribute.tokenType == NOW {
-				paramValue = "NOW "
-			} else {
-				paramValue = attribute.lit + " "
-			}
+			paramValue := protoParser.getLit(attribute)
 			paramStrings[key] = paramValue
 		}
 
@@ -1154,7 +1148,11 @@ func (protoParser *ProtoParser) filterWithoutLabelsWarpScript(framework Framewor
 `)
 
 	for _, labelKey := range framework.unNamedAttributes {
-		buffer.WriteString(fmt.Sprintf("[ SWAP [] { '%s' '~.*' } filter.bylabels ] @neg-filter\n", labelKey.lit))
+		if labelKey.tokenType == NATIVEVARIABLE {
+			buffer.WriteString(fmt.Sprintf("[ SWAP [] { $%s '~.*' } filter.bylabels ] @neg-filter\n", labelKey.lit))
+		} else {
+			buffer.WriteString(fmt.Sprintf("[ SWAP [] { '%s' '~.*' } filter.bylabels ] @neg-filter\n", labelKey.lit))
+		}
 		buffer.WriteString(" DROP \n")
 	}
 
@@ -1168,14 +1166,9 @@ func (protoParser *ProtoParser) filterWarpScript(framework FrameworkStatement) (
 	filterType := ""
 	attributesSize := len(framework.unNamedAttributes)
 
-	paramStrings := make([]string, len(framework.unNamedAttributes))
+	paramStrings := make([]InternalField, len(framework.unNamedAttributes))
 	for key, attribute := range framework.unNamedAttributes {
-
-		paramValue := ""
-		if attribute.tokenType == STRING {
-			paramValue = attribute.lit
-		}
-		paramStrings[key] = paramValue
+		paramStrings[key] = attribute
 	}
 
 	suffix := ""
@@ -1189,29 +1182,69 @@ func (protoParser *ProtoParser) filterWarpScript(framework FrameworkStatement) (
 			message := FILTERBYLASTVALUE.String() + " expects only one value"
 			return "", protoParser.NewProtoError(message, framework.pos)
 		}
-		if strings.HasPrefix(paramStrings[0], "<=") {
+		if strings.HasPrefix(paramStrings[0].lit, "<=") {
 			filterType += "le"
-			paramStrings[0] = strings.TrimPrefix(paramStrings[0], "<=")
+			paramStrings[0].lit = strings.TrimPrefix(paramStrings[0].lit, "<=")
 
-		} else if strings.HasPrefix(paramStrings[0], "<") {
+		} else if strings.HasPrefix(paramStrings[0].lit, "<") {
 			filterType += "lt"
-			paramStrings[0] = strings.TrimPrefix(paramStrings[0], "<")
+			paramStrings[0].lit = strings.TrimPrefix(paramStrings[0].lit, "<")
 
-		} else if strings.HasPrefix(paramStrings[0], "!=") {
+		} else if strings.HasPrefix(paramStrings[0].lit, "!=") {
 			filterType += "ne"
-			paramStrings[0] = strings.TrimPrefix(paramStrings[0], "!=")
+			paramStrings[0].lit = strings.TrimPrefix(paramStrings[0].lit, "!=")
 
-		} else if strings.HasPrefix(paramStrings[0], ">=") {
+		} else if strings.HasPrefix(paramStrings[0].lit, ">=") {
 			filterType += "ge"
-			paramStrings[0] = strings.TrimPrefix(paramStrings[0], ">=")
+			paramStrings[0].lit = strings.TrimPrefix(paramStrings[0].lit, ">=")
 
-		} else if strings.HasPrefix(paramStrings[0], ">") {
+		} else if strings.HasPrefix(paramStrings[0].lit, ">") {
 			filterType += "gt"
-			paramStrings[0] = strings.TrimPrefix(paramStrings[0], ">")
+			paramStrings[0].lit = strings.TrimPrefix(paramStrings[0].lit, ">")
 
-		} else if strings.HasPrefix(paramStrings[0], "=") {
+		} else if strings.HasPrefix(paramStrings[0].lit, "=") {
 			filterType += "eq"
-			paramStrings[0] = strings.TrimPrefix(paramStrings[0], "=")
+			paramStrings[0].lit = strings.TrimPrefix(paramStrings[0].lit, "=")
+
+		} else if paramStrings[0].tokenType == NATIVEVARIABLE {
+			filterType = ""
+			paramStrings[0].lit = `
+			'filter.last.' 'prefixFilterOperator' STORE
+			$test
+			<% DUP 0 2 SUBSTRING ">=" == %>
+			<% 
+				2 SUBSTRING EVAL
+				$prefixFilterOperator 'ge' + EVAL
+			%>
+			<% DUP 0 2 SUBSTRING "<=" == %>
+			<% 
+				2 SUBSTRING EVAL
+				$prefixFilterOperator 'le' + EVAL
+			%>
+			<% DUP 0 2 SUBSTRING "!=" == %>
+			<% 
+				2 SUBSTRING EVAL
+				$prefixFilterOperator 'ne' + EVAL
+			%>
+			<% DUP 0 1 SUBSTRING "=" == %>
+			<% 
+				1 SUBSTRING EVAL
+				$prefixFilterOperator 'eq' + EVAL
+			%>
+			<% DUP 0 1 SUBSTRING "<" == %>
+			<% 
+				1 SUBSTRING EVAL
+				$prefixFilterOperator 'lt' + EVAL
+			%>
+			<% DUP 0 1 SUBSTRING ">" == %>
+			<% 
+				1 SUBSTRING EVAL
+				$prefixFilterOperator 'gt' + EVAL
+			%>
+			<% 'Unkown operator in filterbyvalue function' MSGFAIL  %>
+			6
+			SWITCH
+			`
 
 		} else {
 			message := "last value first caracter must be one a lower, geater, equal or not sign"
@@ -1223,7 +1256,7 @@ func (protoParser *ProtoParser) filterWarpScript(framework FrameworkStatement) (
 
 		filtersField := make([]WhereField, len(paramStrings))
 		for index, label := range paramStrings {
-			whereItem, err := protoParser.getWhereField(label, framework.pos)
+			whereItem, err := protoParser.getWhereField(label.lit, framework.pos, label.tokenType, framework.operator)
 			if err != nil {
 				return "", err
 			}
@@ -1239,31 +1272,49 @@ func (protoParser *ProtoParser) filterWarpScript(framework FrameworkStatement) (
 		}
 		filterType = "byclass"
 
-		whereItem, err := protoParser.getWhereField(paramStrings[0], framework.pos)
-		if err != nil {
-			return "", err
+		if paramStrings[0].tokenType == NATIVEVARIABLE {
+			paramStrings[0].lit = "$" + paramStrings[0].lit
+		} else {
+			whereItem, err := protoParser.getWhereField(paramStrings[0].lit, framework.pos, paramStrings[0].tokenType, framework.operator)
+			if err != nil {
+				return "", err
+			}
+			paramStrings[0].lit = "'" + protoParser.getWhereValueString(*whereItem) + "'"
 		}
-		paramStrings[0] = "'" + protoParser.getWhereValueString(*whereItem) + "'"
+	}
+
+	paramStringsItem := make([]string, len(paramStrings))
+
+	for key, attribute := range paramStrings {
+		paramStringsItem[key] = attribute.lit
 	}
 
 	if framework.operator != FILTERBYLABELS {
-		value += strings.Join(paramStrings, " ")
+		value += strings.Join(paramStringsItem, " ")
 	}
 
 	suffix += " ] FILTER"
 
+	if paramStrings[0].tokenType == NATIVEVARIABLE {
+		return value + suffix, nil
+	}
 	return value + " filter." + filterType + suffix, nil
 }
 
 // Where field validator
-func (protoParser *ProtoParser) getWhereField(lit string, pos Pos) (*WhereField, error) {
+func (protoParser *ProtoParser) getWhereField(lit string, pos Pos, token Token, function Token) (*WhereField, error) {
 
 	// Load all possible operators
 	values := []MatchType{EqualMatch, RegexMatch, NotEqualMatch, RegexNoMatch}
 
 	// Instantiate future where and set a negative max length
 	maxLength := -1
-	whereField := &WhereField{}
+	whereField := &WhereField{whereType: token}
+
+	if token == NATIVEVARIABLE {
+		whereField.key = lit
+		return whereField, nil
+	}
 
 	// Loop over all possibles operators
 	for _, value := range values {
@@ -1301,7 +1352,7 @@ func (protoParser *ProtoParser) getWhereField(lit string, pos Pos) (*WhereField,
 
 	// If no operator found send an error to the end user
 	if maxLength == -1 {
-		errMessage := fmt.Sprintf("Error when parsing field %q in %q function", lit, WHERE.String())
+		errMessage := fmt.Sprintf("Error when parsing field %q in %q function", lit, function.String())
 		return nil, protoParser.NewProtoError(errMessage, pos)
 	}
 
@@ -1315,14 +1366,7 @@ func (protoParser *ProtoParser) nValuesOperators(framework FrameworkStatement) s
 	value := ""
 
 	for _, attribute := range framework.unNamedAttributes {
-		if attribute.tokenType == STRING {
-			value = "'" + attribute.lit + "' "
-		} else if attribute.tokenType == DURATIONVAL {
-			value = protoParser.parseShift(attribute.lit)
-		} else {
-			value = attribute.lit
-		}
-		value = value + " "
+		value += " " + protoParser.getLit(attribute)
 	}
 
 	return value + operatorString
@@ -1333,12 +1377,14 @@ func (protoParser *ProtoParser) addNamePrefix(framework FrameworkStatement) (str
 	value := ""
 
 	if attribute, ok := framework.unNamedAttributes[0]; ok {
-		if attribute.tokenType != STRING {
+
+		attributeLit := protoParser.getLit(framework.unNamedAttributes[0])
+		if attribute.tokenType != STRING && attribute.tokenType != NATIVEVARIABLE {
 			message := "to add a prefix name expects a label name as STRING"
 			return "", protoParser.NewProtoError(message, framework.pos)
 		}
 
-		value = "<% DROP DUP NAME '" + attribute.lit + "' SWAP + RENAME %> LMAP "
+		value = "<% DROP DUP NAME " + attributeLit + " SWAP + RENAME %> LMAP "
 	}
 
 	return value, nil
@@ -1357,12 +1403,13 @@ func (protoParser *ProtoParser) removeLabels(framework FrameworkStatement) (stri
 
 	for _, attribute := range framework.unNamedAttributes {
 
-		if attribute.tokenType != STRING {
+		if attribute.tokenType != STRING && attribute.tokenType != NATIVEVARIABLE {
 			message := "remove a label expects a labels name as STRING"
 			return "", protoParser.NewProtoError(message, framework.pos)
 		}
 
-		value = value + "'" + attribute.lit + "' '' "
+		attributeLit := protoParser.getLit(attribute)
+		value = value + attributeLit + " '' "
 	}
 
 	value = value + "} RELABEL %> LMAP "
@@ -1375,12 +1422,12 @@ func (protoParser *ProtoParser) renameTemplate(framework FrameworkStatement) (st
 	value := ""
 
 	if attribute, ok := framework.unNamedAttributes[0]; ok {
-		if attribute.tokenType != STRING {
+		if attribute.tokenType != STRING && attribute.tokenType != NATIVEVARIABLE {
 			message := "Rename template expects its parameter to be a STRING"
 			return "", protoParser.NewProtoError(message, framework.pos)
 		}
-
-		value = "<% DROP DUP 'series' STORE [ '" + attribute.lit + "' ]"
+		attributeLit := protoParser.getLit(attribute)
+		value = "<% DROP DUP 'series' STORE [ " + attributeLit + " ]"
 		if strings.Contains(value, "${this.name}") {
 			value = strings.Replace(value, "${this.name}", "' $series NAME '", -1)
 		}
@@ -1424,7 +1471,8 @@ func (protoParser *ProtoParser) renameBy(framework FrameworkStatement) (string, 
 			params[key] = attribute
 		}
 		for _, attribute := range params {
-			value += "<% $labels '" + attribute.lit + "' CONTAINSKEY %> <% $prefix SWAP '" + attribute.lit + "' GET + + '-' 'prefix' STORE true 'toRename' STORE %> <% DROP %> IFTE "
+			attributeLit := protoParser.getLit(attribute)
+			value += "<% $labels " + attributeLit + " CONTAINSKEY %> <% $prefix SWAP " + attributeLit + " GET + + '-' 'prefix' STORE true 'toRename' STORE %> <% DROP %> IFTE "
 		}
 
 		value += " <% $toRename %> <% RENAME %> <% DROP %> IFTE %> LMAP"
@@ -1449,12 +1497,15 @@ func (protoParser *ProtoParser) renameLabelKey(framework FrameworkStatement) (st
 		return "", protoParser.NewProtoError(message, framework.pos)
 	}
 
-	if old.tokenType != STRING || new.tokenType != STRING {
+	if (old.tokenType != STRING && old.tokenType != NATIVEVARIABLE) || (new.tokenType != STRING && new.tokenType != NATIVEVARIABLE) {
 		message := "renameLabelKey expects labels name as STRING"
 		return "", protoParser.NewProtoError(message, framework.pos)
 	}
 
-	value := "<% DROP DUP LABELS '" + old.lit + "' GET { '" + new.lit + "' ROT '" + old.lit + "' '' } RELABEL %> LMAP "
+	oldLit := protoParser.getLit(old)
+	newLit := protoParser.getLit(new)
+
+	value := "<% DROP DUP LABELS " + oldLit + " GET { " + newLit + " ROT " + oldLit + " '' } RELABEL %> LMAP "
 
 	return value, nil
 }
@@ -1482,12 +1533,17 @@ func (protoParser *ProtoParser) renameLabelValue(framework FrameworkStatement) (
 		return "", protoParser.NewProtoError(message, framework.pos)
 	}
 
-	if labelKey.tokenType != STRING || regExp.tokenType != STRING || newValue.tokenType != STRING {
+	if (labelKey.tokenType != STRING && labelKey.tokenType != NATIVEVARIABLE) ||
+		(regExp.tokenType != STRING && regExp.tokenType != NATIVEVARIABLE) ||
+		(newValue.tokenType != STRING && newValue.tokenType != NATIVEVARIABLE) {
 		message := "renameLabelValue expects labels name as STRING"
 		return "", protoParser.NewProtoError(message, framework.pos)
 	}
 
-	value := "<% DROP DUP LABELS '" + labelKey.lit + "' GET '" + regExp.lit + "' MATCHER MATCH <% SIZE 0 > %> <% { '" + labelKey.lit + "' '" + newValue.lit + "' } RELABEL %> IFT %> LMAP "
+	labelKeyLit := protoParser.getLit(labelKey)
+	regExpLit := protoParser.getLit(regExp)
+	newValueLit := protoParser.getLit(newValue)
+	value := "<% DROP DUP LABELS " + labelKeyLit + " GET " + regExpLit + " MATCHER MATCH <% SIZE 0 > %> <% { " + labelKeyLit + " " + newValueLit + " } RELABEL %> IFT %> LMAP "
 	return value, nil
 }
 
@@ -1499,7 +1555,7 @@ func (protoParser *ProtoParser) parseKeepValues(framework FrameworkStatement) (s
 	mapValue, ok := framework.attributes[MapperValue]
 
 	if ok {
-		value = mapValue.lit
+		value = protoParser.getLit(mapValue)
 	}
 
 	buffer.WriteString(value)
@@ -1523,6 +1579,13 @@ func (protoParser *ProtoParser) parseKeepValues(framework FrameworkStatement) (s
 // getLabelsString generate a list of elements base on an Internal fields map
 func (protoParser *ProtoParser) getLabelsString(fields map[int]InternalField) string {
 	var buffer bytes.Buffer
+
+	if len(fields) == 1 {
+		field := fields[0]
+		if field.tokenType == NATIVEVARIABLE {
+			return "$" + field.lit
+		}
+	}
 
 	buffer.WriteString("[")
 
@@ -1560,12 +1623,17 @@ func (protoParser *ProtoParser) getLabelsListString(fields []string) string {
 func (protoParser *ProtoParser) getLastTimestamp(selectStatement SelectStatement) (string, error) {
 	if selectStatement.hasFrom {
 		if selectStatement.from.hasTo {
-			if selectStatement.from.to.tokenType == IDENT {
-				return selectStatement.from.to.lit, nil
+
+			value := protoParser.getLit(selectStatement.from.to)
+			if selectStatement.from.to.tokenType == NATIVEVARIABLE {
+				value += "DUP TYPEOF <% 'STRING' != %> <% ISO8601 %> IFT "
+				return value, nil
+			} else if selectStatement.from.to.tokenType == IDENT {
+				return value, nil
 			} else if selectStatement.from.to.tokenType == STRING {
-				return "'" + selectStatement.from.to.lit + "' TOTIMESTAMP", nil
+				return value + " TOTIMESTAMP", nil
 			} else if selectStatement.from.to.tokenType == INTEGER {
-				return selectStatement.from.to.lit, nil
+				return value, nil
 			}
 
 			message := "dates can only be an INTEGER or STRINGS"
@@ -1581,30 +1649,47 @@ func (protoParser *ProtoParser) getLastTimestamp(selectStatement SelectStatement
 func (protoParser *ProtoParser) getLastTick(selectStatement SelectStatement) (string, error) {
 	if selectStatement.hasFrom {
 		if selectStatement.from.hasTo {
-			if selectStatement.from.to.tokenType == STRING {
-				return "'" + selectStatement.from.to.lit + "'", nil
+			value := protoParser.getLit(selectStatement.from.to)
+			if selectStatement.from.to.tokenType == NATIVEVARIABLE {
+				return value + " DUP TYPEOF <% 'STRING' != %> <% ISO8601 %> IFT ", nil
+			} else if selectStatement.from.to.tokenType == STRING {
+				return value, nil
 			} else if selectStatement.from.to.tokenType == INTEGER {
-				return selectStatement.from.to.lit + " ISO8601", nil
+				return value + " ISO8601", nil
 			}
 
 			message := "dates can only be an INTEGER or STRINGS"
 			return "", protoParser.NewProtoError(message, selectStatement.pos)
 		}
+		return "$now ISO8601", nil
 	} else if selectStatement.hasLast {
 		last := selectStatement.last
 
 		shift := "0 h"
+
 		if val, ok := last.options[LastShift]; ok {
-			shift = protoParser.parseShift(val)
+			shift = protoParser.getLit(val)
 		}
 
 		if val, ok := last.options[LastTimestamp]; ok {
-			return val + " " + shift + " -", nil
+			lt := protoParser.getLit(val)
+			return lt + " " + shift + " -", nil
 		}
 
 		if val, ok := last.options[LastDate]; ok {
-			return "'" + val + "' TOTIMESTAMP " + shift + " -", nil
+			ld := protoParser.getLit(val)
+			return ld + " TOTIMESTAMP " + shift + " -", nil
 		}
+
+		if val, ok := last.options[Unknown]; ok {
+			ld := protoParser.getLit(val)
+			return ld + " DUP TYPEOF <% 'STRING' == %> <% TOTIMESTAMP %> IFT " + shift + " -", nil
+		}
+
+		if shift != "0 h" {
+			return "$now " + shift + " -", nil
+		}
+
 	}
 
 	return "$now", nil
@@ -1613,13 +1698,19 @@ func (protoParser *ProtoParser) getLastTick(selectStatement SelectStatement) (st
 // Get Fetch from value as string based on a selectStatement
 func (protoParser *ProtoParser) getFrom(selectStatement SelectStatement) string {
 	if selectStatement.hasFrom {
-		if selectStatement.from.from.tokenType == STRING {
-			return "'" + selectStatement.from.from.lit + "'"
+		value := protoParser.getLit(selectStatement.from.from)
+		if selectStatement.from.from.tokenType == NATIVEVARIABLE {
+			return value + " DUP TYPEOF <% 'STRING' != %> <% ISO8601 %> IFT "
+		} else if selectStatement.from.from.tokenType == STRING {
+			return value
 		}
-		return selectStatement.from.from.lit + " ISO8601"
+		return value + " ISO8601"
 	} else if selectStatement.hasLast {
 		last := selectStatement.last
 
+		if last.lastType == NATIVEVARIABLE {
+			return "$" + last.last
+		}
 		if last.isDuration {
 			return protoParser.parseShift(last.last)
 		}
@@ -1633,12 +1724,11 @@ func (protoParser *ProtoParser) getFrom(selectStatement SelectStatement) string 
 // Get getFromSampling  return true if from, and from sampling value as number
 func (protoParser *ProtoParser) getFromSampling(selectStatement SelectStatement) (bool, string) {
 	if selectStatement.hasFrom {
-		if selectStatement.from.from.tokenType == IDENT {
-			return true, selectStatement.from.from.lit
-		} else if selectStatement.from.from.tokenType == STRING {
-			return true, "'" + selectStatement.from.from.lit + "' TOTIMESTAMP"
+		value := protoParser.getLit(selectStatement.from.from)
+		if selectStatement.from.from.tokenType == STRING {
+			return true, value + " TOTIMESTAMP"
 		}
-		return true, selectStatement.from.from.lit
+		return true, value
 	} else if selectStatement.hasLast {
 		last := selectStatement.last
 
@@ -1685,9 +1775,50 @@ func (protoParser *ProtoParser) getFetchLabels(labels []WhereField) string {
 	buffer.WriteString("{ ")
 
 	for _, label := range labels {
-		labelsValue := protoParser.getWhereValueString(label)
-		newLabels := fmt.Sprintf("%q %q ", label.key, labelsValue)
-		buffer.WriteString(newLabels)
+		if label.whereType == NATIVEVARIABLE {
+			buffer.WriteString("$" + label.key)
+			whereVar := `
+			DUP TYPEOF 
+			<%
+				'LIST' !=
+			%> 
+			<%
+				1 ->LIST
+			%>
+			IFT 
+			<%
+				DUP '=' SPLIT
+				<% 
+					DUP SIZE 2 == 
+				%>
+				<% 
+					SWAP DROP LIST-> DROP
+					CONTINUE
+				%>
+				IFT
+				
+				DROP
+				'~' SPLIT
+				<% 
+					DUP SIZE 2 == 
+				%>
+				<% 
+					LIST-> DROP
+					'~' SWAP +
+					CONTINUE
+				%>
+				IFT
+				
+				'Labels fields expects a "=" or a "~" as key value separator' MSGFAIL
+			%>
+			FOREACH
+			`
+			buffer.WriteString(whereVar)
+		} else {
+			labelsValue := protoParser.getWhereValueString(label)
+			newLabels := fmt.Sprintf("%q %q ", label.key, labelsValue)
+			buffer.WriteString(newLabels)
+		}
 	}
 
 	buffer.WriteString("}")
@@ -1703,4 +1834,20 @@ func (protoParser *ProtoParser) getWhereValueString(label WhereField) string {
 	}
 
 	return labelsValue
+}
+
+func (protoParser *ProtoParser) getLit(field InternalField) string {
+
+	switch field.tokenType {
+	case NATIVEVARIABLE:
+		return "$" + field.lit + " "
+	case STRING:
+		return "'" + field.lit + "' "
+	case DURATIONVAL:
+		return protoParser.parseShift(field.lit) + " "
+	case NOW:
+		return "$now"
+	default:
+		return field.lit + " "
+	}
 }

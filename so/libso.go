@@ -17,10 +17,12 @@ import (
 )
 
 //export TslToWarpScript
-func TslToWarpScript(tslQuery string, token string, allowAuthenticate bool, lineStart int, defaultTimeRange string, defaultSamplers string) *C.char {
+func TslToWarpScript(tslQuery string, token string, allowAuthenticate bool, lineStart int, defaultTimeRange string, defaultSamplers string, nativeVariable string) *C.char {
+
+	variables := strings.Split(nativeVariable, ",")
 
 	// Get query parsing result
-	parser, err := tsl.NewParser(strings.NewReader(tslQuery), "warp10", token, lineStart, defaultTimeRange, defaultSamplers)
+	parser, err := tsl.NewParser(strings.NewReader(tslQuery), "warp10", token, lineStart, defaultTimeRange, defaultSamplers, variables)
 
 	if err != nil {
 		return C.CString("error - " + err.Error())

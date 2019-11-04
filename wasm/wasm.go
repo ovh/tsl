@@ -23,9 +23,12 @@ func tslToWarpScriptWasm(this js.Value, inputs []js.Value) interface{} {
 	defaultTimeRange := inputs[4].String()
 	defaultSamplers := inputs[5].String()
 	callback := inputs[len(inputs)-1:][0]
+	nativeVariable := inputs[6].String()
+
+	variables := strings.Split(nativeVariable, ",")
 
 	// Get query parsing result
-	parser, err := tsl.NewParser(strings.NewReader(tslQuery), "warp10", defaultToken, lineStart, defaultTimeRange, defaultSamplers)
+	parser, err := tsl.NewParser(strings.NewReader(tslQuery), "warp10", defaultToken, lineStart, defaultTimeRange, defaultSamplers, variables)
 	if err != nil {
 		callback.Invoke(err.Error(), js.Null())
 		return nil
