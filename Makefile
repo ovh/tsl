@@ -10,7 +10,6 @@ CFLAGS		:= -X 'github.com/ovh/tsl/cmd.githash=$(GITHASH)' -X 'github.com/ovh/tsl
 CROSS			:= GOOS=linux GOARCH=amd64
 WASMFLAGS	:= GOOS=js GOARCH=wasm
 WASMEXEC	:= tsl.wasm
-SOLIB	:= $(BUILD_DIR)/so/tsl_$(VERSION).so
 SOFLAGS   := -buildmode=c-shared
 VERSION				:= $(shell git describe --tags --candidates 1 --match '*.*')
 
@@ -19,6 +18,7 @@ LINT_PATHS		:= ./ ./cmd/... ./middlewares/... ./tsl/...
 
 BUILD_FILE	:= tsl_$(VERSION)
 BUILD_DEST	:= $(BUILD_DIR)/$(BUILD_FILE)
+SOLIB	:= $(BUILD_DIR)/so/tsl_$(VERSION).so
 
 rwildcard	:= $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2) $(filter $(subst *,%,$2),$d))
 
