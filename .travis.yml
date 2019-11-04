@@ -15,12 +15,11 @@ install:
 # install godep
 - go get -u github.com/golang/dep/cmd/dep
 - make dep
-
-before_script:
-- mkdir build
+- make release
 
 script:
 - make wasm
+- make so
 
 # create npm package
 after_success:
@@ -31,3 +30,17 @@ after_success:
 
 - cp $(go env GOROOT)/misc/wasm/wasm_exec.js build/wasm_exec.js
 # TODO: npm publish build dir steps
+
+deploy:
+  provider: releases
+  api_key: "${GHTOKEN}"
+  file:
+  - "build/tsl"
+  - "build/so/tsl.so"
+  - "build/index.js"
+  - "build/package.json"
+  - "build/tsl.wasm"
+  skip_cleanup: true
+  on:
+    tags: true
+  draft: true
