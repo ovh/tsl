@@ -20,6 +20,8 @@ BUILD_FILE	:= tsl_$(VERSION)
 BUILD_DEST	:= $(BUILD_DIR)/$(BUILD_FILE)
 SOLIB	:= $(BUILD_DIR)/so/tsl_$(VERSION).so
 
+WASMEXEC	:= $(BUILD_DIR)/wasm/tsl_$(VERSION).wasm
+
 rwildcard	:= $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2) $(filter $(subst *,%,$2),$d))
 
 .SECONDEXPANSION:
