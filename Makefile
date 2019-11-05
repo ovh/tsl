@@ -28,10 +28,10 @@ all: dep format lint release
 
 .PHONY: init
 init:
-	curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-	go get -u github.com/golangci/golangci-lint/cmd/golangci-lint
+	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(GOPATH)/bin v1.17.1
 .PHONY: dep
 dep:
+	curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 	dep ensure -v
 
 .PHONY: clean
