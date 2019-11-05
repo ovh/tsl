@@ -78,3 +78,9 @@ release: tsl.go $$(call rwildcard, ./cmd, *.go) $$(call rwildcard, ./core, *.go)
 .PHONY: dist
 dist: tsl.go $$(call rwildcard, ./cmd, *.go) $$(call rwildcard, ./core, *.go) $$(call rwildcard, ./tsl, *.go) $$(call rwildcard, ./middlewares, *.go)
 	$(CROSS) $(CC) -ldflags "$(CFLAGS) -s -w" -o $(BUILD_DEST) tsl.go
+
+.PHONY: cds
+cds: tsl.go $$(call rwildcard, ./cmd, *.go) $$(call rwildcard, ./core, *.go) $$(call rwildcard, ./tsl, *.go) $$(call rwildcard, ./middlewares, *.go)
+	$(CROSS) $(CC) -ldflags "$(CFLAGS) -s -w" -o $(BUILD_DEST) tsl.go
+	$(CC) $(SOFLAGS) -o $(SOLIB) so/libso.go 
+	$(WASMFLAGS) $(CC) -o $(WASMEXEC) wasm/wasm.go
