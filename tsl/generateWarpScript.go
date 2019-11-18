@@ -501,9 +501,9 @@ func (protoParser *ProtoParser) getCreateSeries(createStatement CreateStatement,
 	buffer.WriteString(prefix + "[\n")
 
 	for _, createSeries := range createStatement.createSeries {
-		buffer.WriteString(prefix + "    NEWGTS '")
-		buffer.WriteString(createSeries.metric)
-		buffer.WriteString("' RENAME ")
+		buffer.WriteString(prefix + "    NEWGTS ")
+		buffer.WriteString(protoParser.getLit(createSeries.metric))
+		buffer.WriteString(" RENAME ")
 		buffer.WriteString(protoParser.getFetchLabels(createSeries.where))
 		buffer.WriteString(" RELABEL")
 		buffer.WriteString("\n")
@@ -635,6 +635,7 @@ func (protoParser *ProtoParser) getBucketize(selectStatement SelectStatement, fr
 			}
 			// err previously catched
 			last, _ := protoParser.getLastTimestamp(selectStatement)
+			last += " TOTIMESTAMP "
 			_, from := protoParser.getFromSampling(selectStatement)
 			shiftSpan = last + " " + from + " - " + auto + " /"
 		} else {
@@ -659,6 +660,8 @@ func (protoParser *ProtoParser) getBucketize(selectStatement SelectStatement, fr
 	if attribute, ok := framework.attributes[SampleRelative]; ok {
 		relative = attribute.tokenType == TRUE
 	}
+
+	lasttick += " TOTIMESTAMP "
 
 	relativeLastBucket := ""
 	lastbucket := lasttick
@@ -727,6 +730,7 @@ func (protoParser *ProtoParser) getBucketize(selectStatement SelectStatement, fr
 
 			// Get the select last bucket as timestamp
 			lastTimestamp, _ := protoParser.getLastTimestamp(selectStatement)
+			lastTimestamp += " TOTIMESTAMP "
 			auto = lastTimestamp + " " + auto + " - "
 		}
 
@@ -736,7 +740,7 @@ func (protoParser *ProtoParser) getBucketize(selectStatement SelectStatement, fr
 		}
 	}
 
-	bucketize := fmt.Sprintf("[ $raw " + bucketizer + " " + lastbucket + " " + shiftSpan + " " + auto + " ] BUCKETIZE " + fillText + " UNBUCKETIZE")
+	bucketize := "[ $raw " + bucketizer + " " + lastbucket + " " + shiftSpan + " " + auto + " ] BUCKETIZE " + fillText + " UNBUCKETIZE"
 
 	if relative && shiftSpan != sampleShiftSpan {
 
@@ -1816,7 +1820,7 @@ func (protoParser *ProtoParser) getFetchLabels(labels []WhereField) string {
 			buffer.WriteString(whereVar)
 		} else {
 			labelsValue := protoParser.getWhereValueString(label)
-			newLabels := fmt.Sprintf("%q %q ", label.key, labelsValue)
+			newLabels := protoParser.getStringValue(label.key) + " " + labelsValue
 			buffer.WriteString(newLabels)
 		}
 	}
@@ -1833,7 +1837,7 @@ func (protoParser *ProtoParser) getWhereValueString(label WhereField) string {
 		labelsValue = "~(?!" + labelsValue + ").*"
 	}
 
-	return labelsValue
+	return protoParser.getStringValue(labelsValue)
 }
 
 func (protoParser *ProtoParser) getLit(field InternalField) string {
@@ -1842,7 +1846,7 @@ func (protoParser *ProtoParser) getLit(field InternalField) string {
 	case NATIVEVARIABLE:
 		return "$" + field.lit + " "
 	case STRING:
-		return "'" + field.lit + "' "
+		return protoParser.getStringValue(field.lit)
 	case DURATIONVAL:
 		return protoParser.parseShift(field.lit) + " "
 	case NOW:
@@ -1850,4 +1854,27 @@ func (protoParser *ProtoParser) getLit(field InternalField) string {
 	default:
 		return field.lit + " "
 	}
+}
+
+func (protoParser *ProtoParser) getStringValue(lit string) string {
+	value := "'" + lit + "' "
+	if strings.Contains(lit, "${this.") {
+		variables := strings.Split(lit, "${this.")
+		if len(variables) > 1 {
+
+			prefix := ""
+			for i, variable := range variables {
+				if i == 0 {
+					continue
+				}
+				variableKeys := strings.Split(variable, "}")
+
+				value = strings.Replace(value, "${this."+variableKeys[0]+"}", "' "+prefix+"$"+variableKeys[0]+" + '", 1)
+				prefix = "+ "
+			}
+
+			value += "+ "
+		}
+	}
+	return value
 }
