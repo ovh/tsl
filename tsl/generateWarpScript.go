@@ -484,8 +484,68 @@ func (protoParser *ProtoParser) operatorBy(framework FrameworkStatement, hasBy b
 	}
 
 	bucketizer := paramValue + "bucketizer." + aggregator
+	byMacro := ""
 
-	byMacro := "<% [ SWAP " + bucketizer + " 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> "
+	switch attribute.tokenType {
+	case NAMES:
+		byMacro = "<% NAME %> "
+		if framework.operator == TOPN {
+			framework.operator = BOTTOMN
+		} else if framework.operator == BOTTOMN {
+			framework.operator = TOPN
+		}
+	case SELECTORS:
+		byMacro = "<% TOSELECTOR %> "
+		if framework.operator == TOPN {
+			framework.operator = BOTTOMN
+		} else if framework.operator == BOTTOMN {
+			framework.operator = TOPN
+		}
+	case LABELS:
+		byMacro = " <% LABELS 'sbLabels' STORE "
+		if framework.unNamedAttributes[0].tokenType == INTERNALLIST {
+			byMacro += "[ "
+			for _, label := range framework.unNamedAttributes[0].fieldList {
+				value := protoParser.getLit(label)
+				if label.tokenType == IDENT {
+					value = protoParser.getStringValue(label.lit)
+				}
+				byMacro += "$sbLabels " + value + "GET <% DUP ISNULL %> <% DROP '' %> IFT "
+			}
+			byMacro += " ] '' JOIN "
+		} else {
+			byMacro += "$sbLabels " + protoParser.getLit(framework.unNamedAttributes[0]) + "GET <% DUP ISNULL %> <% DROP '' %> IFT "
+		}
+		byMacro += "%> "
+		if framework.operator == TOPN {
+			framework.operator = BOTTOMN
+		} else if framework.operator == BOTTOMN {
+			framework.operator = TOPN
+		}
+	case ATTRIBUTES:
+		byMacro = " <% ATTRIBUTES 'sbLabels' STORE "
+		if framework.unNamedAttributes[0].tokenType == INTERNALLIST {
+			byMacro += "[ "
+			for _, label := range framework.unNamedAttributes[0].fieldList {
+				value := protoParser.getLit(label)
+				if label.tokenType == IDENT {
+					value = protoParser.getStringValue(label.lit)
+				}
+				byMacro += "$sbLabels " + value + "GET <% DUP ISNULL %> <% DROP '' %> IFT "
+			}
+			byMacro += " ] '' JOIN "
+		} else {
+			byMacro += "$sbLabels " + protoParser.getLit(framework.unNamedAttributes[0]) + "GET <% DUP ISNULL %> <% DROP '' %> IFT "
+		}
+		byMacro += "%> "
+		if framework.operator == TOPN {
+			framework.operator = BOTTOMN
+		} else if framework.operator == BOTTOMN {
+			framework.operator = TOPN
+		}
+	default:
+		byMacro = "<% [ SWAP " + bucketizer + " 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> "
+	}
 
 	operatorString := toWarpScript[framework.operator]
 
@@ -635,7 +695,6 @@ func (protoParser *ProtoParser) getBucketize(selectStatement SelectStatement, fr
 			}
 			// err previously catched
 			last, _ := protoParser.getLastTimestamp(selectStatement)
-			last += " TOTIMESTAMP "
 			_, from := protoParser.getFromSampling(selectStatement)
 			shiftSpan = last + " " + from + " - " + auto + " /"
 		} else {
@@ -660,8 +719,6 @@ func (protoParser *ProtoParser) getBucketize(selectStatement SelectStatement, fr
 	if attribute, ok := framework.attributes[SampleRelative]; ok {
 		relative = attribute.tokenType == TRUE
 	}
-
-	lasttick += " TOTIMESTAMP "
 
 	relativeLastBucket := ""
 	lastbucket := lasttick
@@ -730,7 +787,6 @@ func (protoParser *ProtoParser) getBucketize(selectStatement SelectStatement, fr
 
 			// Get the select last bucket as timestamp
 			lastTimestamp, _ := protoParser.getLastTimestamp(selectStatement)
-			lastTimestamp += " TOTIMESTAMP "
 			auto = lastTimestamp + " " + auto + " - "
 		}
 
@@ -1630,7 +1686,7 @@ func (protoParser *ProtoParser) getLastTimestamp(selectStatement SelectStatement
 
 			value := protoParser.getLit(selectStatement.from.to)
 			if selectStatement.from.to.tokenType == NATIVEVARIABLE {
-				value += "DUP TYPEOF <% 'STRING' != %> <% ISO8601 %> IFT "
+				value += "DUP TYPEOF <% 'STRING' == %> <% TOTIMESTAMP %> IFT "
 				return value, nil
 			} else if selectStatement.from.to.tokenType == IDENT {
 				return value, nil
