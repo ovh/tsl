@@ -1029,8 +1029,8 @@ func (p *Parser) parseCreateSeries(tok Token, pos Pos, lit string, instruction *
 	}
 
 	// Set current select field into instruction
-	if fields[0].tokenType == STRING {
-		createSeries.metric = fields[0].lit
+	if fields[0].tokenType == STRING || fields[0].tokenType == NATIVEVARIABLE {
+		createSeries.metric = fields[0]
 	}
 
 	inCreateMethod := true
@@ -3132,7 +3132,12 @@ func (p *Parser) parseTemplateString(tok Token, lit string, pos Pos, function st
 
 			resultString = strings.Replace(lit, "${"+toEvaluate+"}", stringList, 1)
 		}
-		resultString = strings.Replace(resultString, "${"+toEvaluate+"}", variable.lit, 1)
+
+		if variable.tokenType == NATIVEVARIABLE {
+			resultString = strings.Replace(lit, "${"+toEvaluate+"}", "${this."+toEvaluate+"}", -1)
+		} else {
+			resultString = strings.Replace(resultString, "${"+toEvaluate+"}", variable.lit, -1)
+		}
 	}
 	return resultString, nil
 }

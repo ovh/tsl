@@ -79,7 +79,7 @@ type CreateStatement struct {
 
 // CreateSeries represents a new series data struct
 type CreateSeries struct {
-	metric string
+	metric InternalField
 	where  []WhereField
 	values []DataPoint
 	end    *InternalField
