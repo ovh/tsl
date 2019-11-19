@@ -508,6 +508,7 @@ TSL introduces some methods to sort metrics by their samples values.
 * The **bottomN** operator used to get the lowest N series (sorted by their globals **mean** value in **ascending** order). Use example: _.bottomN(2)._
 * The **topNBy** operator used to get the top N series (sorted according to the result of a **global operator** in **descending** order. The operator function can be one of: **last, first, max, mean, min, sum, median, count, percentile, and** or **or**). Use example: _.topNBy(2, min)._, _.topNBy(2, percentile, 42)._
 * The **bottomNBy** operator used to get the lowest N series (sorted according to the result of a **global operator** in **ascending** order. The operator function can be one of: **last, first, max, mean, min, sum, median, count, percentile, and** or **or**). Use example: _.topNBy(2, max)._
+* All sort operations here can be used to sort the resulting series set based on it's meta using a **sort** operator with a meta operator as **names, selectors, labels** or **attributes**. Use example: _.sortBy(names)._, _.topNBy(2, selectors)._, _.sortDescBy(labels, "l0")., _.sortBy(attributes, [ test, "l1"])._.
 
 > The **sortBy**, **sortDescBy**, **topNBy** and **bottomNBy** operators are not available for **Prometheus**.
 

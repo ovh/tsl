@@ -528,7 +528,7 @@ func (p *Parser) parseVariableDec(tok Token, pos Pos, lit string, name string) (
 		}
 		variable.fieldList = field.fieldList
 	// Case basic varables
-	case STRING, INTEGER, NUMBER, DURATIONVAL, TRUE, FALSE, NEGINTEGER, NEGNUMBER:
+	case STRING, INTEGER, NUMBER, DURATIONVAL, TRUE, FALSE, NEGINTEGER, NEGNUMBER, NATIVEVARIABLE:
 		variable.tokenType = tok
 		variable.lit = lit
 		variable.name = name
@@ -2005,6 +2005,10 @@ func (p *Parser) parseOperatorBy(tok Token, pos Pos, lit string, instruction *In
 		{tokenType: ANDL},
 		{tokenType: ORL},
 		{tokenType: PERCENTILE},
+		{tokenType: NAMES},
+		{tokenType: SELECTORS},
+		{tokenType: LABELS},
+		{tokenType: ATTRIBUTES},
 		{tokenType: INTEGER, prefixName: Aggregator, hasPrefixName: true},
 		{tokenType: INTEGER},
 	}
@@ -2013,6 +2017,8 @@ func (p *Parser) parseOperatorBy(tok Token, pos Pos, lit string, instruction *In
 	paramFields := []InternalField{
 		{tokenType: INTEGER, prefixName: Aggregator, hasPrefixName: true},
 		{tokenType: INTEGER},
+		{tokenType: STRING},
+		{tokenType: INTERNALLIST},
 	}
 
 	// Load expected fields
@@ -2036,8 +2042,7 @@ func (p *Parser) parseOperatorBy(tok Token, pos Pos, lit string, instruction *In
 				field.lit = field.tokenType.String()
 			}
 			opBy.attributes[Aggregator] = field
-			if field.tokenType == PERCENTILE {
-
+			if field.tokenType == PERCENTILE || field.tokenType == ATTRIBUTES || field.tokenType == LABELS {
 				var err error
 				opBy, _, err = p.manageValueAggregator(opBy, pos, tok, field, fields, 0, skippedIndex)
 				if err != nil {
@@ -2081,7 +2086,7 @@ func (p *Parser) parseOperatorBy(tok Token, pos Pos, lit string, instruction *In
 					field.lit = field.tokenType.String()
 				}
 				opBy.attributes[Aggregator] = field
-				if field.tokenType == PERCENTILE {
+				if field.tokenType == PERCENTILE || field.tokenType == ATTRIBUTES || field.tokenType == LABELS {
 
 					var err error
 					opBy, skippedIndex, err = p.manageValueAggregator(opBy, pos, tok, field, fields, index, skippedIndex)
@@ -2247,6 +2252,18 @@ func (p *Parser) manageValueAggregator(op *FrameworkStatement, pos Pos, tok Toke
 	if field.tokenType == PERCENTILE {
 		atType[NUMBER] = "a decimal number"
 		atType[INTEGER] = "an integer number"
+		atType[NATIVEVARIABLE] = "Nat vatiable"
+	}
+
+	if field.tokenType == LABELS {
+		atType[STRING] = "string"
+		atType[INTERNALLIST] = "a list"
+		atType[NATIVEVARIABLE] = "Nat vatiable"
+	}
+
+	if field.tokenType == ATTRIBUTES {
+		atType[STRING] = "string"
+		atType[INTERNALLIST] = "a list"
 		atType[NATIVEVARIABLE] = "Nat vatiable"
 	}
 
@@ -3165,6 +3182,13 @@ func (p *Parser) ParseInternalFieldList(function string, field InternalField) (*
 			}
 		}
 
+		if tok == IDENT && p.variables[lit].tokenType == NATIVEVARIABLE {
+			tok = NATIVEVARIABLE
+		} else if tok == IDENT {
+			tok = p.variables[lit].tokenType
+			lit = p.variables[lit].lit
+		}
+
 		field.fieldList = append(field.fieldList, InternalField{tokenType: tok, lit: lit})
 
 		tok, pos, lit = p.ScanIgnoreWhitespace()
@@ -3234,7 +3258,8 @@ func (p *Parser) parseListAdd(tok Token, pos Pos, lit string, fields []InternalF
 
 	// Instantiate a single time oprerator
 	zeroFields := []InternalField{
-		{tokenType: STRING}}
+		{tokenType: STRING},
+		{tokenType: NATIVEVARIABLE}}
 
 	// Load sampler expected fields
 	getAddFields, err := p.ParseFields(tok.String(), map[int][]InternalField{0: zeroFields}, 1)
