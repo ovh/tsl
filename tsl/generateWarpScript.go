@@ -1914,8 +1914,8 @@ func (protoParser *ProtoParser) getLit(field InternalField) string {
 
 func (protoParser *ProtoParser) getStringValue(lit string) string {
 	value := "'" + lit + "' "
-	if strings.Contains(lit, "${this.") {
-		variables := strings.Split(lit, "${this.")
+	if strings.Contains(lit, "${this.nativevariable.") {
+		variables := strings.Split(lit, "${this.nativevariable.")
 		if len(variables) > 1 {
 
 			prefix := ""
@@ -1925,7 +1925,7 @@ func (protoParser *ProtoParser) getStringValue(lit string) string {
 				}
 				variableKeys := strings.Split(variable, "}")
 
-				value = strings.Replace(value, "${this."+variableKeys[0]+"}", "' "+prefix+"$"+variableKeys[0]+" + '", 1)
+				value = strings.Replace(value, "${this.nativevariable."+variableKeys[0]+"}", "' "+prefix+"$"+variableKeys[0]+" + '", 1)
 				prefix = "+ "
 			}
 

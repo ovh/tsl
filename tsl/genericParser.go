@@ -3151,7 +3151,7 @@ func (p *Parser) parseTemplateString(tok Token, lit string, pos Pos, function st
 		}
 
 		if variable.tokenType == NATIVEVARIABLE {
-			resultString = strings.Replace(lit, "${"+toEvaluate+"}", "${this."+toEvaluate+"}", -1)
+			resultString = strings.Replace(lit, "${"+toEvaluate+"}", "${this.nativevariable."+toEvaluate+"}", -1)
 		} else {
 			resultString = strings.Replace(resultString, "${"+toEvaluate+"}", variable.lit, -1)
 		}
