@@ -1925,7 +1925,7 @@ func (protoParser *ProtoParser) getStringValue(lit string) string {
 				}
 				variableKeys := strings.Split(variable, "}")
 
-				value = strings.Replace(value, "${this.nativevariable."+variableKeys[0]+"}", "' "+prefix+"$"+variableKeys[0]+" + '", 1)
+				value = strings.Replace(value, "${this.nativevariable."+variableKeys[0]+"}", "' "+prefix+"$"+variableKeys[0]+" TOSTRING + '", 1)
 				prefix = "+ "
 			}
 
