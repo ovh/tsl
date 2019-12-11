@@ -137,6 +137,7 @@ const (
 	SELECT
 	SELECTORS
 	SERIES
+	SETLABELFROMNAME
 	SETLABELS
 	SETVALUES
 	SHIFT
@@ -283,6 +284,7 @@ var tokens = [...]string{
 	SELECT:              "select",
 	SELECTORS:           "selectors",
 	SERIES:              "series",
+	SETLABELFROMNAME:    "setLabelFromName",
 	SETLABELS:           "setLabels",
 	SETVALUES:           "setValues",
 	SHIFT:               "shift",

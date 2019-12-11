@@ -13,46 +13,47 @@ const (
 )
 
 var toWarpScript = [...]string{
-	RENAME:         "RENAME",
-	RENAMEBY:       "RENAME",
-	SHIFT:          "TIMESHIFT",
-	SHRINK:         "SHRINK",
-	TIMESCALE:      "TIMESCALE",
-	TIMECLIP:       "TIMECLIP",
-	TIMEMODULO:     "TIMEMODULO FLATTEN",
-	TIMESPLIT:      "TIMESPLIT FLATTEN",
-	STORE:          "UPDATE",
-	RESETS:         "FALSE RESETS",
-	DAY:            "'UTC' mapper.day",
-	MINUTE:         "'UTC' mapper.minute",
-	HOUR:           "'UTC' mapper.hour",
-	MONTH:          "'UTC' mapper.month",
-	WEEKDAY:        "'UTC' mapper.weekday",
-	MAXWITH:        "mapper.max.x",
-	MINWITH:        "mapper.min.x",
-	YEAR:           "'UTC' mapper.year",
-	STDDEV:         "TRUE mapper.sd",
-	STDVAR:         "TRUE mapper.var",
-	TIMESTAMP:      "mapper.tick",
-	LN:             "e mapper.log",
-	LOG2:           "2 mapper.log",
-	LOG10:          "10 mapper.log",
-	LOGN:           "mapper.log",
-	BOTTOMNBY:      "SORTBY",
-	SORTBY:         "SORTBY",
-	SORTDESCBY:     "SORTBY REVERSE",
-	TOPNBY:         "SORTBY REVERSE",
-	BOTTOMN:        "SORTBY",
-	SORT:           "SORTBY",
-	SORTDESC:       "SORTBY REVERSE",
-	TOPN:           "SORTBY REVERSE",
-	EQUAL:          "eq",
-	GREATEROREQUAL: "ge",
-	GREATERTHAN:    "gt",
-	LESSOREQUAL:    "le",
-	LESSTHAN:       "lt",
-	NOTEQUAL:       "ne",
-	MEAN:           "mean",
+	RENAME:           "RENAME",
+	RENAMEBY:         "RENAME",
+	SETLABELFROMNAME: "RENAME",
+	SHIFT:            "TIMESHIFT",
+	SHRINK:           "SHRINK",
+	TIMESCALE:        "TIMESCALE",
+	TIMECLIP:         "TIMECLIP",
+	TIMEMODULO:       "TIMEMODULO FLATTEN",
+	TIMESPLIT:        "TIMESPLIT FLATTEN",
+	STORE:            "UPDATE",
+	RESETS:           "FALSE RESETS",
+	DAY:              "'UTC' mapper.day",
+	MINUTE:           "'UTC' mapper.minute",
+	HOUR:             "'UTC' mapper.hour",
+	MONTH:            "'UTC' mapper.month",
+	WEEKDAY:          "'UTC' mapper.weekday",
+	MAXWITH:          "mapper.max.x",
+	MINWITH:          "mapper.min.x",
+	YEAR:             "'UTC' mapper.year",
+	STDDEV:           "TRUE mapper.sd",
+	STDVAR:           "TRUE mapper.var",
+	TIMESTAMP:        "mapper.tick",
+	LN:               "e mapper.log",
+	LOG2:             "2 mapper.log",
+	LOG10:            "10 mapper.log",
+	LOGN:             "mapper.log",
+	BOTTOMNBY:        "SORTBY",
+	SORTBY:           "SORTBY",
+	SORTDESCBY:       "SORTBY REVERSE",
+	TOPNBY:           "SORTBY REVERSE",
+	BOTTOMN:          "SORTBY",
+	SORT:             "SORTBY",
+	SORTDESC:         "SORTBY REVERSE",
+	TOPN:             "SORTBY REVERSE",
+	EQUAL:            "eq",
+	GREATEROREQUAL:   "ge",
+	GREATERTHAN:      "gt",
+	LESSOREQUAL:      "le",
+	LESSTHAN:         "lt",
+	NOTEQUAL:         "ne",
+	MEAN:             "mean",
 }
 
 // GenerateWarpScript Generate Global WarpScript to execute from an instruction list
@@ -327,6 +328,14 @@ func (protoParser *ProtoParser) getFrameworksOp(selectStatement SelectStatement,
 				return "", err
 			}
 			buffer.WriteString(name)
+			buffer.WriteString("\n")
+
+		case SETLABELFROMNAME:
+			rename, err := protoParser.setLabelFromName(framework)
+			if err != nil {
+				return "", err
+			}
+			buffer.WriteString(rename)
 			buffer.WriteString("\n")
 
 		case RENAMEBY:
@@ -1514,6 +1523,27 @@ func (protoParser *ProtoParser) renameTemplate(framework FrameworkStatement) (st
 		value += " '' JOIN RENAME %> LMAP"
 
 	}
+
+	return value, nil
+}
+
+// operators generate WarpScript line for an individual statement
+func (protoParser *ProtoParser) setLabelFromName(framework FrameworkStatement) (string, error) {
+	value := ""
+
+	params := make([]InternalField, len(framework.unNamedAttributes))
+	for key, attribute := range framework.unNamedAttributes {
+		params[key] = attribute
+	}
+
+	label := protoParser.getLit(params[0])
+	match := ""
+	if len(params) == 2 {
+		regex := protoParser.getLit(params[1])
+		match = regex + " MATCH DUP SIZE 0 > <% '' 0 SET %> IFT '' JOIN "
+	}
+
+	value = "<% DROP DUP { " + label + " ROT NAME " + match + "} RELABEL %> LMAP"
 
 	return value, nil
 }

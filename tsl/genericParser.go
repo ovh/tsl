@@ -846,6 +846,14 @@ loop:
 			if err != nil {
 				return nil, err
 			}
+
+		case SETLABELFROMNAME:
+			instruction, err = p.parseSetLabelFromName(tok, pos, lit, instruction)
+
+			if err != nil {
+				return nil, err
+			}
+
 		case ABS, CEIL, CUMULATIVESUM, DAY, FLOOR, HOUR, LN, LOG2, LOG10, MINUTE, MONTH, ROUND, RESETS, SQRT, TIMESTAMP, WEEKDAY, YEAR, TOBOOLEAN, TODOUBLE, TOLONG, TOSTRING:
 			instruction, err = p.parseNoOperator(tok, pos, lit, instruction)
 
@@ -2390,6 +2398,36 @@ func (p *Parser) parseRenameLabelValue(tok Token, pos Pos, lit string, instructi
 			op.unNamedAttributes[index] = field
 		}
 
+	}
+
+	instruction.selectStatement.frameworks = append(instruction.selectStatement.frameworks, *op)
+	return instruction, nil
+}
+
+// TSL operator parser that include one or two strings as parameter
+func (p *Parser) parseSetLabelFromName(tok Token, pos Pos, lit string, instruction *Instruction) (*Instruction, error) {
+	op := &FrameworkStatement{}
+	op.pos = pos
+	op.operator = tok
+	op.attributes = make(map[PrefixAttributes]InternalField)
+	op.unNamedAttributes = make(map[int]InternalField)
+
+	// Load expected fields
+	fields, err := p.ParseFields(tok.String(), map[int][]InternalField{}, 2)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Check field size number
+	if len(fields) < 1 {
+		errMessage := fmt.Sprintf("The %q function expects at least one %q parameter", tok.String(), STRING.String())
+		return nil, p.NewTslError(errMessage, pos)
+	}
+
+	// Validate all received fields
+	for index, field := range fields {
+		op.unNamedAttributes[index] = field
 	}
 
 	instruction.selectStatement.frameworks = append(instruction.selectStatement.frameworks, *op)

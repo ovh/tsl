@@ -734,6 +734,7 @@ The update metrics meta-data in TSL you can use one of the following function:
 * The **renameLabelValue** to rename a label value. Use example: _.renameLabelValue("dc", "new")._
 * The **renameLabelValue** to rename a label value matching a regexp. Use example: _.renameLabelValue("dc", "lg.*", "new-dc")._
 * The **renameTemplate** expect a Template string to rename a series. The `${this.name}` corresponds to the current series name, the `${this.labels.key}` to a series label key. Use example: _.renameTemplate("my.new.series.${this.name}.is.great"), .renameTemplate('${this.labels.hostname} (${this.labels.datacenter}) ${this.labels.hostname} ${this.name} ${ this.name }')._
+* The **setLabelFromName** to set each metric name (fully or partly with a regex) in a label. Expects a string as first parameter to specify the label name to use. Optionally a second parameter, a regex string, can be specified to set only a part of the metric name. Each matching group of the regex will be joined to form the value in the label, and if the regex don't match, the label will not be set.
 
 > None of those methods are currently available for **Prometheus**. 
 
