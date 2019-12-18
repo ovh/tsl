@@ -629,7 +629,7 @@ func (protoParser *ProtoParser) getFetch(selectStatement SelectStatement, token 
 
 	// Return find when no last or from methods were sets
 	if !selectStatement.hasFrom && !selectStatement.hasLast {
-		find := fmt.Sprintf("[ '%q' %q "+protoParser.getFetchLabels(selectStatement.where)+" ] FIND", token, metric)
+		find := "[ '" + token + "' " + metric + " " + protoParser.getFetchLabels(selectStatement.where) + " ] FIND"
 		attPolicy := protoParser.getAttributePolicyString(selectStatement.attributePolicy, prefix)
 		return find + attPolicy, nil
 	}
