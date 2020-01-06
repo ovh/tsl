@@ -293,7 +293,8 @@ func (from FromStatement) String() string {
 
 func (framework FrameworkStatement) String() string {
 	attributes := AttributesToString(framework.attributes)
-	return " FrameworkStatement{ op: " + framework.operator.String() + "; attributes: " + attributes + "}"
+	unknown := UnknownAttributesToString(framework.unNamedAttributes)
+	return " FrameworkStatement{ op: " + framework.operator.String() + "; attributes: " + attributes + "; unknown" + unknown + "}"
 }
 
 func (field InternalField) String() string {
@@ -317,4 +318,14 @@ func AttributesToString(attributes map[PrefixAttributes]InternalField) string {
 	buffer.WriteString("}")
 
 	return buffer.String()
+}
+
+// UnknownAttributesToString transform an UnkonwAttributes map into string
+func UnknownAttributesToString(attributes map[int]InternalField) string {
+	attrs := make([]string, len(attributes))
+	i := 0
+	for k, v := range attributes {
+		attrs[i] = fmt.Sprintf("%d:%s", k, v)
+	}
+	return fmt.Sprintf("{%s}", strings.Join(attrs, ", "))
 }
