@@ -166,9 +166,9 @@ make so
 
 In the spec folder, you can find a JAVA example of the [.so TSL library](./spec/jna.md).
 
-## Licensing
+## License
 
-See the LICENSE file.
+TSL is released under a [3-BSD clause license](./LICENSE).
 
 ## Get in touch
 
