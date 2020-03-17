@@ -682,7 +682,11 @@ func (protoParser *ProtoParser) getBucketize(selectStatement SelectStatement, fr
 	// Same for span
 	var shiftSpan string
 	if attribute, ok := framework.attributes[SampleSpan]; ok {
-		shiftSpan = protoParser.getLit(attribute)
+		if attribute.tokenType == DURATIONVAL && strings.HasSuffix(attribute.lit, "M") {
+			shiftSpan = attribute.lit
+		} else {
+			shiftSpan = protoParser.getLit(attribute)
+		}
 	} else {
 		// set default shift span to 0
 		shiftSpan = sampleShiftSpan
@@ -732,12 +736,17 @@ func (protoParser *ProtoParser) getBucketize(selectStatement SelectStatement, fr
 	relativeLastBucket := ""
 	lastbucket := lasttick
 	bucketizePrefix := "'raw' STORE "
+
 	// Load relative if it exists or use default set as true
 	if relative && shiftSpan != sampleShiftSpan {
 
-		bucketizePrefix = bucketizePrefix + "$raw " + lasttick + " " + lasttick + " " + lasttick + " " + shiftSpan + " / " + shiftSpan + " * - TIMECLIP NONEMPTY \n" + prefix + "<% SIZE 0 > %>\n"
-
 		relativeSpan := shiftSpan
+
+		if strings.HasSuffix(shiftSpan, "M") {
+			relativeSpan = strings.TrimSuffix(shiftSpan, "M") + " 30 d *"
+		}
+
+		bucketizePrefix = bucketizePrefix + "$raw " + lasttick + " " + lasttick + " " + lasttick + " " + relativeSpan + " / " + relativeSpan + " * - TIMECLIP NONEMPTY \n" + prefix + "<% SIZE 0 > %>\n"
 
 		// When a count is set try to compute a relative span
 		if shiftSpan == sampleShiftSpan {
@@ -755,6 +764,56 @@ func (protoParser *ProtoParser) getBucketize(selectStatement SelectStatement, fr
 			relativeLastBucket = lasttick + " " + relativeSpan + " / " + relativeSpan + " * "
 			lastbucket = lasttick + " " + relativeSpan + " / " + relativeSpan + " * " + relativeSpan + " +"
 		}
+	}
+
+	if strings.HasSuffix(shiftSpan, "M") {
+		bucketSpan := strings.TrimSuffix(shiftSpan, "M")
+		bucketize := "<% \n"
+		bucketize += lastbucket + " TSELEMENTS 1 2 SET 0 3 SET 0 4 SET 0 5 SET 0 6 SET TSELEMENTS-> 1 ADDMONTHS 'endBucketizeMonth' STORE "
+		bucketize += `
+		$raw
+		<%
+			DROP
+			DUP FIRSTTICK 'firstTickBucketizeMonth' STORE
+			$endBucketizeMonth 'tickBucketizeMonth' STORE
+			[] 'clipTicks' STORE
+			<% $tickBucketizeMonth $firstTickBucketizeMonth > %>
+			<% 
+			$clipTicks 
+			[ 
+				$tickBucketizeMonth 
+				$tickBucketizeMonth 
+				-1 ` + bucketSpan + ` * ADDMONTHS
+			]
+			+ 'clipTicks' STORE
+			$tickBucketizeMonth -1 ` + bucketSpan + ` * ADDMONTHS 'tickBucketizeMonth' STORE
+			%>
+			WHILE
+			$clipTicks
+			CLIP FLATTEN NONEMPTY
+			[ SWAP bucketizer.last 0 0 1 ] BUCKETIZE 
+			<%
+				DROP 
+				DUP
+				CLONEEMPTY
+				SWAP
+				DUP
+				FIRSTTICK 'firstTickBucketized' STORE
+				$firstTickBucketized TSELEMENTS
+				1 2 SET 0 3 SET 0 4 SET 0 5 SET 0 6 SET TSELEMENTS->
+				SWAP
+				$firstTickBucketized ATTICK
+				4 GET 'valueBucketized' STORE
+				NaN NaN NaN $valueBucketized
+				ADDVALUE
+			%>
+			LMAP
+			MERGE
+		%>
+		LMAP
+		%> IFT
+		`
+		return bucketizePrefix + bucketize, shiftSpan, nil
 	}
 
 	// Load fill policies
