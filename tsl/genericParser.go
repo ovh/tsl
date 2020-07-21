@@ -506,7 +506,7 @@ func setConnectCall(instruction *Instruction, connectStatement ConnectStatement)
 	if instruction.isGlobalOperator {
 		for i, internalInstruction := range instruction.globalOperator.instructions {
 			if internalInstruction.isGlobalOperator {
-				internalInstruction.globalOperator.instructions[i] = setConnectCall(internalInstruction, connectStatement)
+				instruction.globalOperator.instructions[i] = setConnectCall(internalInstruction, connectStatement)
 			}
 			internalInstruction.connectStatement = connectStatement
 			instruction.globalOperator.instructions[i] = internalInstruction
