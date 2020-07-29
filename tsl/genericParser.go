@@ -300,12 +300,18 @@ loop:
 				p.Unscan()
 
 				instruction, err = p.parsePostVariables(pos, lit, instruction.connectStatement, false, loadVariable)
+				if instruction == nil || &instruction.selectStatement == nil {
+					return nil, nil, err
+				}
 
 				// resets select frameworks pointer
 				frameworks := make([]FrameworkStatement, 0)
-				for _, item := range instruction.selectStatement.frameworks {
-					frameworks = append(frameworks, item)
+				if instruction.selectStatement.frameworks != nil {
+					for _, item := range instruction.selectStatement.frameworks {
+						frameworks = append(frameworks, item)
+					}
 				}
+
 				instruction.selectStatement.frameworks = frameworks
 				if err != nil {
 					return nil, nil, err
