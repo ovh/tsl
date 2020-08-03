@@ -3067,10 +3067,10 @@ func (p *Parser) ParseFields(function string, internalFields map[int][]InternalF
 				// Load an Internal list fields
 				findType = true
 				internalList, err := p.ParseInternalFieldList(function, field)
-				field = *internalList
 				if err != nil {
 					return nil, err
 				}
+				field = *internalList
 				res[index] = field
 				break
 			} else if tok == FILL && field.tokenType == FILL {
