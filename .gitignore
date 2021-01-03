@@ -22,3 +22,5 @@
 
 ### ANTLR ###
 antlr/.antlr/
+
+.DS_Store
